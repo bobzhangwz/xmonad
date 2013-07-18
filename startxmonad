@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Start the trayer int the upper right corner as part of the bar
+# 180px wide with opaque gray background
+trayer --edge top --align right --SetDockType true --SetPartialStrut true --expand false --width 360 --widthtype pixel --transparent true --tint 0x222222 --alpha 0 --height 20 & 
+
+# Fix the weird cross cursor and use normal arrow instead
+# xcompmgr -c &
+
+# firefox &
+# hotot &
+# pidgin &
+# thunderbird &
