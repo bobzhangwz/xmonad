@@ -1,10 +1,10 @@
 #!/bin/bash
+xrandr --output VGA1 --primary --right-of LVDS1 --mode 1680x1050 --output LVDS1 --mode 1366x768 &
 python /home/software/goagent/local/proxy.py &
 # /usr/share/conkycolors/bin/conkyStart &
-xrandr --output VGA1 --primary &
 xcompmgr -c &
 firefox &
 emacs &
 pidgin &
 urxvtd -q -f -o &
-c -conkycolors ~/.tconky/conkyrc &
+conky -c ~/.conkycolors/conkyrc &

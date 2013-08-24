@@ -110,25 +110,35 @@ xftFont = "xft: inconsolata-14"
 main :: IO ()
 main = do
   init <- spawn "~/.xmonad/startxmonad"
-  xmonad =<< myConfig
+  d <- openDisplay ""
+  let w = fromIntegral $ displayWidth d 0 :: Int
+      h = fromIntegral $ displayHeight d 0 :: Int
+  let barWidth = h `div` 13
+  let barHeight = h `div` 35
+  let fontSize = h `div` 54
+  dzen <- spawnPipe $ "killall dzen2; dzen2 -x " ++ (show $ barWidth*5) ++ " -h " ++ show barHeight ++ " -ta right -fg '#a8a3f7' -fn 'WenQuanYi Micro Hei-" ++ show fontSize ++ "'"
+  -- remind <http://www.roaringpenguin.com/products/remind>
+  -- dzenRem <- spawnBash $ "rem | tail -n +3 | grep . | { read a; while read t; do b[${#b[@]}]=$t; echo $t; done; { echo $a; for a in \"${b[@]}\"; do echo $a; done; } | dzen2 -p -x " ++ show barWidth ++ " -w " ++ (show $ barWidth*4) ++ " -h " ++ show barHeight ++ " -ta l -fg '#a8a3f7' -fn 'WenQuanYi Micro Hei-" ++ show fontSize ++ "' -l ${#b[@]}; }"
+  spawn $ "killall trayer; trayer --align left --edge top --expand false --width " ++ show barWidth ++ " --transparent true --tint 0x000000 --widthtype pixel --SetPartialStrut true --SetDockType true --height " ++ show barHeight
+  xmonad =<< myConfig dzen
 
 myGSConfig = ["xrandr --output VGA1 --primary", "google-chrome", "conky -c ~/.conkycolors/conkyrc"
               , "eclipse", "firefox", "urxvtd -q -f -o"]
 
 myCommands = []
 
-
-myConfig = do
+myConfig dzen = do
   checkTopicConfig myTopicNames myTopicConfig
   return
     $ ewmh $ withNavigation2DConfig myNavigation2DConfig $
-    withUrgencyHook NoUrgencyHook $ gnomeConfig {
+    withUrgencyHook NoUrgencyHook $ defaultConfig {
       terminal    = "urxvtc"
       , modMask     = mod4Mask
       , workspaces  = myTopicNames
       , borderWidth = 2
       , layoutHook  = layoutHook'
-      , manageHook  = manageHook gnomeConfig <+> manageHook'
+      , manageHook  = manageHook'
+      , logHook = myDynamicLog dzen
       } `additionalKeysP` myKeys
 
 manageHook' :: ManageHook
@@ -239,10 +249,11 @@ myKeys =
         , (f, m) <- [(W.view, ""), (liftM2 (.) W.view W.shift, "S-")]
     ]
     ++
-    [ ("M-S-q", spawn "gnome-session-quit")
-    , ("M-q", spawn "gnome-session-quit --power-off")
+    [
+      ("M-S-q", io exitFailure)
+    -- , ("M-q", spawn "gnome-session-quit --power-off")
+    , ("M-q", spawn "ghc -e ':m +XMonad Control.Monad System.Exit' -e 'flip unless exitFailure =<< recompile False' && xmonad --restart")
     , ("M-S-c", kill)
-    -- , ("M-q", spawn "ghc -e ':m +XMonad Control.Monad System.Exit' -e 'flip unless exitFailure =<< recompile False' && xmonad --restart")
 
     -- , ("<Print>", spawn "import /tmp/screen.jpg")
     -- , ("C-<Print>", spawn "import -window root /tmp/screen.jpg")
@@ -505,3 +516,25 @@ launchApp config app exts = mkXPrompt (TitledPrompt app) config (getFilesWithExt
   where
     launch :: MonadIO m => String -> String -> m ()
     launch app params = spawn $ app ++ " " ++ completionToCommand (undefined :: Shell) params
+
+
+myDynamicLog h = dynamicLogWithPP $ defaultPP
+  {
+    -- ppCurrent = ap clickable (wrap "^i(/home/ray/.xmonad/icons/default/" ")" . fromMaybe "application-default-icon.xpm" . flip M.lookup myIcons)
+  -- , ppHidden = ap clickable (wrap "^i(/home/ray/.xmonad/icons/gray/" ")" . fromMaybe "application-default-icon.xpm" . flip M.lookup myIcons)
+  -- , ppUrgent = ap clickable (wrap "^i(/home/ray/.xmonad/icons/highlight/" ")" . fromMaybe "application-default-icon.xpm" . flip M.lookup myIcons)
+    ppSep = dzenColor "#0033FF" "" " | "
+  , ppWsSep = ""
+  , ppTitle  = dzenColor "green" "" . shorten 45
+  , ppLayout = flip (subRegex (mkRegex "ReflectX")) "[|]" .
+      flip (subRegex (mkRegex "ReflectY")) "[-]" .
+      flip (subRegex (mkRegex "Mirror")) "[+]"
+  , ppOrder  = \(ws:l:t:exs) -> [t,l,ws]++exs
+  , ppSort   = fmap (namedScratchpadFilterOutWorkspace.) (ppSort byorgeyPP)
+  , ppExtras = [ dzenColorL "violet" "" $ date "%R %a %y-%m-%d"
+               , dzenColorL "orange" "" battery
+               ]
+  , ppOutput = hPutStrLn h
+  }
+  -- where
+    -- clickable w = wrap ("^ca(1,wmctrl -s `wmctrl -d | grep "++w++" | cut -d' ' -f1`)") "^ca()"
