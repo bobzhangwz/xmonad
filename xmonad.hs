@@ -1,145 +1,507 @@
-import XMonad
+import Control.Monad
+import Codec.Binary.UTF8.String (encodeString)
+import Data.Char
+import Data.List
+import qualified Data.Map as M
+import Data.Maybe (isNothing, isJust, catMaybes, fromMaybe)
+import Data.Ratio ((%))
+import Data.Function
+import Data.Monoid
+import System.Exit
+import System.IO
+import System.Process
+import System.Posix.Process (executeFile)
+import System.Posix.Types (ProcessID)
+import Text.Printf
+import Text.Regex
+
+import XMonad hiding ((|||))
+import qualified XMonad.StackSet as W
+import XMonad.Util.ExtensibleState as XS
+import XMonad.Util.EZConfig
+import XMonad.Util.Loggers
+import XMonad.Util.NamedWindows (getName)
+import XMonad.Util.NamedScratchpad
+import XMonad.Util.Paste
+import XMonad.Util.Run
+import qualified XMonad.Util.Themes as Theme
+import XMonad.Util.WorkspaceCompare
+
+import XMonad.Prompt
+import XMonad.Prompt.Input
+import XMonad.Prompt.Man
+import XMonad.Prompt.RunOrRaise
+import XMonad.Prompt.Shell
+import XMonad.Prompt.Window
+import XMonad.Prompt.Workspace
+
+import qualified XMonad.Actions.FlexibleManipulate as Flex
+import XMonad.Actions.Commands
+import XMonad.Actions.CycleRecentWS
+import XMonad.Actions.CycleWS
+import XMonad.Actions.DynamicWorkspaces
+import XMonad.Actions.FloatKeys
+import XMonad.Actions.FloatSnap
+import XMonad.Actions.GridSelect
+import XMonad.Actions.Navigation2D
+import qualified XMonad.Actions.Search as S
+import XMonad.Actions.Submap
+import XMonad.Actions.SpawnOn
+import XMonad.Actions.TopicSpace
+import XMonad.Actions.UpdatePointer
+import XMonad.Actions.Warp
+import XMonad.Actions.WindowBringer
+import XMonad.Actions.WindowGo
+import XMonad.Actions.WindowMenu
+import XMonad.Actions.WithAll (sinkAll, killAll)
+
 import XMonad.Hooks.DynamicLog
-import XMonad.Util.Run ( spawnPipe )
-import XMonad.Util.EZConfig ( additionalKeys )
-import System.IO ( hPutStrLn )
-import System.Exit ( ExitCode(ExitSuccess), exitWith )
-import XMonad.Config.Gnome ( gnomeConfig )
+import XMonad.Hooks.FadeInactive
+import XMonad.Hooks.EwmhDesktops
+import XMonad.Hooks.ManageDocks
 import XMonad.Hooks.ManageHelpers
-import XMonad.Config.Desktop ( desktopLayoutModifiers )
-import XMonad.Layout.NoBorders ( smartBorders )
-import XMonad.Hooks.ManageHelpers ( isFullscreen, isDialog, doFullFloat )
-import XMonad.Hooks.UrgencyHook ( NoUrgencyHook(NoUrgencyHook), withUrgencyHook )
-import XMonad.Layout.ComboP ( Property(Role) )
-import XMonad.Layout.PerWorkspace ( onWorkspace )
-import Control.Monad ( liftM2 )
-import XMonad.Layout.IM ( withIM )
-import XMonad.Layout.Reflect ( reflectHoriz )
-import qualified XMonad.StackSet as W ( sink, shift, greedyView )
+import XMonad.Hooks.Place
+import XMonad.Hooks.UrgencyHook
 
+import XMonad.Config.Gnome
+import XMonad.Layout.WindowNavigation
+import XMonad.Layout.IM
+import XMonad.Layout.Mosaic
+import XMonad.Layout.SimpleFloat
+import XMonad.Layout.AutoMaster
+import XMonad.Layout.DragPane
+import qualified XMonad.Layout.HintedGrid as HintedGrid
+import XMonad.Layout.Grid
+import XMonad.Layout.LayoutCombinators
+import XMonad.Layout.Master
+import XMonad.Layout.Maximize
+import XMonad.Layout.MultiToggle
+import XMonad.Layout.MultiToggle.Instances
+import XMonad.Layout.Named
+import XMonad.Layout.NoBorders
+import XMonad.Layout.PerWorkspace
+import XMonad.Layout.Reflect
+import XMonad.Layout.Renamed
+import XMonad.Layout.ResizableTile
+import XMonad.Layout.Tabbed
+import XMonad.Layout.WindowNavigation
+import XMonad.Layout.WorkspaceDir
+import XMonad.Layout.WindowSwitcherDecoration
+import XMonad.Layout.DraggingVisualizer
+import qualified XMonad.Layout.Magnifier as Mag
+
+
+-- Theme {{{
+-- Color names are easier to remember:
+colorOrange         = "#FD971F"
+colorDarkGray       = "#1B1D1E"
+colorPink           = "#F92672"
+colorGreen          = "#A6E22E"
+colorBlue           = "#66D9EF"
+colorYellow         = "#E6DB74"
+colorWhite          = "#CCCCC6"
+colorNormalBorder   = "#CCCCCp6"
+colorFocusedBorder  = "#fd971f"
+barFont  = "terminus"
+barXFont = "inconsolata:size=12"
+xftFont = "xft: inconsolata-14"
+--}}}
+
+main :: IO ()
 main = do
-    -- I use two dzen bars, the left one contains the Xomand workspaces
-    -- and title etc., eth right one contains the output from conky
-    -- with some stats etc.
-    status <- spawnPipe myDzenStatus
-    conky  <- spawnPipe myDzenConky
+  init <- spawn "~/.xmonad/startxmonad"
+  xmonad =<< myConfig
 
-    -- Since gnome isn't starting any init script like .xinitrc, I'm running
-    -- my own init script manually
-    init <- spawn "/home/poe/.xmonad/startxmonad"
+myGSConfig = ["xrandr --output VGA1 --primary", "google-chrome", "conky -c ~/.conkycolors/conkyrc"
+              , "eclipse", "firefox", "urxvtd -q -f -o"]
 
-    -- I'm still running Xomand as a gnome session which is nice to keep
-    -- some custom settings, power management etc.
-    -- Might swap that later...
-    xmonad $ withUrgencyHook NoUrgencyHook $ gnomeConfig {
-        -- Mix custom manage hook with the gnome one
-        manageHook = myManageHook <+> manageHook gnomeConfig
-        -- Defining 9 workspaces, some of them "named"
-        , workspaces = ["1:www", "2:mail", "3:chat", "4:music", "5:edit", "6", "7", "8", "9"]
-        , layoutHook = myLayout
-        , logHook = myLogHook status
-        -- Use Windows key for all the keyboard shotcuts instead of Alt
-        , modMask = mod4Mask
-        -- Gnome terminal sucks, use urxvt instead
-        , terminal = "terminator"
-        -- I like the focused windo to be the one the mouse is hovering
-        -- over. Takes a bit to get used to...
-        , focusFollowsMouse = True
+myCommands = []
 
-    -- Define some additional key bindings
-    } `additionalKeys`
-        -- Use Ctrl + Alt + L to lock the screen
-        [ ((mod1Mask .|. controlMask, xK_l), spawn "gnome-screensaver-command --lock")
-        -- Take a delayed screen shot using Ctrl + Print
-        , ((controlMask, xK_Print), spawn "sleep 0.2; scrot -s")
-        -- Take a screen shot using the Print key
-        , ((0, xK_Print), spawn "scrot")
-        -- Use Windows + P to open dmenu
-        , ((mod4Mask, xK_p), spawn "dmenu_run -b")
-        -- As former Windows user I like to have Windows + E for nautilus
-        , ((mod4Mask, xK_e), spawn "nautilus")
-        -- Use Windows + Shift + Q to exit XMonad (logout)
-        , ((mod4Mask .|. shiftMask, xK_q), io (exitWith ExitSuccess))
-	]
 
--- The Manage hook places windows on certain workspaces automatically
--- and takes care of fullscreen / floating windows
-myManageHook = composeAll . concat $
+myConfig = do
+  checkTopicConfig myTopicNames myTopicConfig
+  return
+    $ ewmh $ withNavigation2DConfig myNavigation2DConfig $
+    withUrgencyHook NoUrgencyHook $ gnomeConfig {
+      terminal    = "urxvtc"
+      , modMask     = mod4Mask
+      , workspaces  = myTopicNames
+      , borderWidth = 2
+      , layoutHook  = layoutHook'
+      , manageHook  = manageHook gnomeConfig <+> manageHook'
+      } `additionalKeysP` myKeys
+
+manageHook' :: ManageHook
+manageHook' = composeAll . concat $
     [ [isDialog --> doFloat]
     , [isFullscreen --> doFullFloat]
-    , [className =? c --> doFloat | c <- myCFloats]
-    , [title =? t --> doFloat | t <- myTFloats]
-    , [resource =? r --> doFloat | r <- myRFloats]
+    , [resource =? r --> doCenterFloat | r <- myRFloats]
     , [(className =? i <||> resource =? i) --> doIgnore | i <- myIgnores]
     , [(className =? x <||> title =? x <||> resource =? x) --> doSink | x <- mySinks]
     , [(className =? x <||> title =? x <||> resource =? x) --> doFullFloat | x <- myFullscreens]
-    , [(className =? x <||> title =? x <||> resource =? x) --> doShift "1:www" | x <- my1Shifts]
-    , [(className =? x <||> title =? x <||> resource =? x) --> doShift "2:mail" | x <- my2Shifts]
-    , [(className =? x <||> title =? x <||> resource =? x) --> doShift "3:chat" | x <- my3Shifts]
-    , [(className =? x <||> title =? x <||> resource =? x) --> doShift "4:music" | x <- my4Shifts]
-    , [(className =? x <||> title =? x <||> resource =? x) --> doShiftAndGo "5:edit" | x <- my5Shifts]
-    , [(className =? x <||> title =? x <||> resource =? x) --> doShiftAndGo "6" | x <- my6Shifts]
-    , [(className =? x <||> title =? x <||> resource =? x) --> doShiftAndGo "7" | x <- my7Shifts]
-    , [(className =? x <||> title =? x <||> resource =? x) --> doShiftAndGo "8" | x <- my8Shifts]
-    , [(className =? x <||> title =? x <||> resource =? x) --> doShiftAndGo "9" | x <- my9Shifts]
+    , [(className =? x <||> title =? x <||> resource =? x) --> doShift "web" | x <- myWeb]
+    , [(className =? x <||> title =? x <||> resource =? x) --> doShift "code" | x <- myCode]
+    , [(className =? x <||> title =? x <||> resource =? x) --> doShift "doc" | x <- myDoc]
+    , [(className =? x <||> title =? x <||> resource =? x) --> doShift "term" | x <- myTerm]
+    , [(className =? x <||> title =? x <||> resource =? x) --> doShift "chat" | x <- myChat]
+    , [(className =? x <||> title =? x <||> resource =? x) --> doShiftAndGo "media" | x <- myMedia]
+    , [(className =? x <||> title =? x <||> resource =? x) --> doShiftAndGo "gimp" | x <- myGimp]
+    , [title =? t --> doCenterFloat | t <- myTFloats]
+    , [className =? c --> doCenterFloat | c <- myCFloats]
+    , [name =? n --> doCenterFloat | n<- myNFloats]
+    , [manageDocks , namedScratchpadManageHook scratchpads ]
     ]
     where
-    -- Hook used to shift windows without focusing them
-    doShiftAndGo = doF . liftM2 (.) W.greedyView W.shift
-    -- Hook used to push floating windows back into the layout
-    -- This is used for gimp windwos to force them into a layout.
-    doSink = ask >>= \w -> liftX (reveal w) >> doF (W.sink w)
-    -- Float dialogs, Download windows and Save dialogs
-    myCFloats = ["Sysinfo", "XMessage"]
-    myTFloats = ["Downloads", "Save As..."]
+      name = stringProperty "WM_NAME"
+      -- Hook used to shift windows without focusing them
+      doShiftAndGo = doF . liftM2 (.) W.greedyView W.shift
+      -- Hook used to push floating windows back into the layout
+      -- This is used for gimp windwos to force them into a layout.
+      doSink = ask >>= \w -> liftX (reveal w) >> doF (W.sink w)
+      -- Float dialogs, Download windows and Save dialogs
+      myCFloats = ["Sysinfo", "XMessage", "Smplayer","MPlayer", "nemo", "Toplevel"
+                  , "Xmessage","XFontSel","Downloads","Nm-connection-editor", "Pidgin"]
+      myTFloats = ["Downloads", "Save As..."]
+      myRFloats = ["Dialog"]
+      myNFloats   = ["bashrun","Google Chrome Options","Chromium Options"
+                    , "System Settings", "Library", "Firefox Preference"]
+      myDoc = []
+      mySinks = ["gimp"]
+      -- Ignore gnome leftovers
+      myIgnores = ["Unity-2d-panel", "Unity-2d-launcher", "desktop_window", "kdesktop",
+                   "desktop","desktop_window","notify-osd","stalonetray","trayer"]
+      -- Run VLC, firefox and VLC on fullscreen
+      myFullscreens = ["vlc", "Image Viewer"]
 
-    myRFloats = ["Dialog"]
-    -- Ignore gnome leftovers
-    myIgnores = ["Unity-2d-panel", "Unity-2d-launcher", "desktop_window", "kdesktop"]
-    mySinks = ["gimp"]
-    -- Run VLC, firefox and VLC on fullscreen
-    myFullscreens = ["vlc", "Image Viewer", "firefox"]
-    -- Define default workspaces for some programs
-    my1Shifts = ["Firefox-bin", "Firefox", "firefox", "Firefox Web Browser", "opera", "Opera"]
-    my2Shifts = ["thunderbird", "Thunderbird-bin", "thunderbird-bin", "Thunderbird"]
-    my3Shifts = ["Pidgin Internet Messenger", "Buddy List", "pidgin", "skype", "skype-wrapper", "Skype"]
-    my4Shifts = ["Banshee"]
-    my5Shifts = ["geany", "eclipse", "Eclipse"]
-    my6Shifts = ["hotot"]
-    my7Shifts = ["urxvt"]
-    my8Shifts = ["gimp", "GIMP Image Editor"]
-    my9Shifts = ["vlc", "nautilus"]
+      -- Define default workspaces for some programs
+      myWeb = ["Firefox-bin", "Firefox",  "Firefox Web Browser"
+              , "opera", "Opera", "Chromium", "Google-chrome"]
+      myChat = ["Pidgin Internet Messenger", "Buddy List"
+               , "skype", "skype-wrapper", "Skype", "Conky"]
+      myCode = ["geany", "eclipse", "Eclipse", "Emacs24", "Gvim", "emacs"]
+      myTerm = ["gnome-terminal"]
+      myGimp = ["Gimp", "GIMP Image Editor"]
+      myMedia = ["Rhythmbox","Spotify","Boxee","Trine"]
 
--- Define a special layout for the GIMP workspace with the two toolbar
--- windows on each side of the main windows.
--- Also change the ratio for main/other windows to the golden section
--- instead of 1:1
-myLayout = onWorkspace "8" gimpLayout $ smartBorders (desktopLayoutModifiers (resizableTile ||| Mirror resizableTile ||| Full))
-    where
-    resizableTile = Tall nmaster delta ratio
-    gimpLayout = (withIM (0.12) (Role "gimp-toolbox") $ reflectHoriz $ withIM (0.15) (Role "gimp-dock") Full)
-    nmaster = 1
-    ratio = toRational (2/(1+sqrt(5)::Double))
-    delta = 3/100
 
--- Forward the window information to the left dzen bar and format it
-myLogHook h = dynamicLogWithPP $ myDzenPP { ppOutput = hPutStrLn h }
+myNavigation2DConfig = defaultNavigation2DConfig {
+  layoutNavigation   = [("Full", centerNavigation)]
+  , unmappedWindowRect = [("Full", singleWindowRect)]
+  }
 
--- Left bar is 1000px wide, right one 500, rest is taken by trayer
--- myDzenStatus = "dzen2 -x '0' -w '1000' -ta 'l'" ++ myDzenStyle
--- myDzenConky  = "conky -c ~/.xmonad/conkyrc | dzen2 -x '1000' -w '500' -ta 'r'" ++ myDzenStyle
-myDzenStatus = "dzen2 -w '500' -ta 'l'" ++ myDzenStyle
-myDzenConky  = "conky -c ~/.xmonad/conkyrc | dzen2 -x '500' -w '704' -ta 'r'" ++ myDzenStyle
-myDzenStyle  = " -h '20' -fg '#777777' -bg '#222222' -fn 'arial:bold:size=11'"
+layoutHook' = onWorkspaces ["gimp"] gimpLayout $
+              onWorkspaces ["chat"] imLayout $
+              customLayout
+  where
+    customLayout = avoidStruts $
+                   configurableNavigation (navigateColor "#00aa00") $
+                   -- mkToggle1 TABBED $
+                   mkToggle1 NBFULL $
+                   mkToggle1 REFLECTX $
+                   mkToggle1 REFLECTY $
+                   mkToggle1 MIRROR $
+                   mkToggle1 NOBORDERS $
+                   smartBorders $
+                   Full ||| ResizableTall 1 (3/100) (1/2) []
+                   ||| mosaic 1.5 [7,5,2]
+                   ||| autoMaster 1 (1/20) (Mag.magnifier Grid)
+                   ||| HintedGrid.GridRatio (4/3) False
+                   ||| simpleFloat
+                   ||| dragPane Horizontal 0.1 0.3
 
--- Very plain formatting, non-empty workspaces are highlighted,
--- urgent workspaces (e.g. active IM window) are highlighted in red
-myDzenPP  = dzenPP
-    { ppCurrent = dzenColor "#3399ff" "" . wrap " " " "
-    , ppHidden  = dzenColor "#dddddd" "" . wrap " " " "
-    , ppHiddenNoWindows = dzenColor "#777777" "" . wrap " " " "
-    , ppUrgent  = dzenColor "#ff0000" "" . wrap " " " "
-    , ppSep     = "  "
-    , ppLayout  = \y -> ""
-    , ppTitle   = dzenColor "#ffffff" "" . wrap " " " "
+    gimpLayout = avoidStruts $ withIM (0.11) (Role "gimp-toolbox") $
+                 reflectHoriz $
+                 withIM (0.15) (Role "gimp-dock") customLayout
+
+    imLayout = avoidStruts $ withIM (1%5) (And (ClassName "Pidgin") (Role "buddy_list")) $
+               reflectHoriz $
+               withIM (1%7) (ClassName "Conky") customLayout
+
+
+
+myKeys =
+    [ ("M-" ++ m ++ [k], f i)
+        | (i, k) <- zip myTopicNames "1234567890-="
+        , (f, m) <- [ (switchTopic myTopicConfig, "")
+                    , (windows . liftM2 (.) W.view W.shift, "S-")
+                    ]
+    ]
+    ++
+    [ ("C-; " ++ m ++ [k], f i)
+        | (i, k) <- zip myTopicNames "asdfghjk"
+        , (f, m) <- [ (switchTopic myTopicConfig, "")
+                    , (windows . liftM2 (.) W.view W.shift, "S-")
+                    ]
+    ]
+    ++
+    [("M-" ++ m ++ k, screenWorkspace sc >>= flip whenJust (windows . f))
+        | (k, sc) <- zip ["w", "e", "r"] [0..]
+        , (f, m) <- [(W.view, ""), (liftM2 (.) W.view W.shift, "S-")]
+    ]
+    ++
+    [ ("M-S-q", spawn "gnome-session-quit")
+    , ("M-q", spawn "gnome-session-quit --power-off")
+    , ("M-S-c", kill)
+    -- , ("M-q", spawn "ghc -e ':m +XMonad Control.Monad System.Exit' -e 'flip unless exitFailure =<< recompile False' && xmonad --restart")
+
+    -- , ("<Print>", spawn "import /tmp/screen.jpg")
+    -- , ("C-<Print>", spawn "import -window root /tmp/screen.jpg")
+    , ("M-<Return>", spawn "urxvtc" >> sendMessage (JumpToLayout "ResizableTall"))
+    , ("C-; o o", spawnSelected defaultGSConfig myGSConfig)
+    , ("C-; o k", kill)
+    , ("C-; o i", spawn "xcalib -i -a")
+    , ("C-; o l", spawn "xscreensaver-command -lock")
+    , ("C-; o d", spawn "xkill")
+    -- , ("<XF86AudioNext>", spawn "mpc_seek forward")
+    -- , ("<XF86AudioPrev>", spawn "mpc_seek backward")
+    -- , ("<XF86AudioRaiseVolume>", spawn "change_volume up")
+    -- , ("<XF86AudioLowerVolume>", spawn "change_volume down")
+    -- , ("<XF86AudioMute>", spawn "amixer set Master mute")
+    -- , ("<XF86AudioPlay>", spawn "mpc toggle")
+    -- , ("<XF86Eject>", spawn "eject")
+    , ("M-S-a", sendMessage Taller)
+    , ("M-S-z", sendMessage Wider)
+    , ("C-; o f", placeFocused $ withGaps (22, 0, 0, 0) $ smart (0.5,0.5))
+
+    -- window management
+    , ("C-; o s", withFocused $ windows . W.sink)
+    , ("C-; o b", windowPromptBring myXPConfig)
+    , ("C-; o c", banishScreen LowerRight)
+    , ("M-<Tab>", cycleRecentWS [xK_Super_L] xK_Tab xK_Tab)
+    , ("M1-<Tab>", windows W.focusDown)
+    , ("M1-<F3>", kill)
+    , ("M-n", doTo Next EmptyWS getSortByIndex (windows . liftM2 (.) W.view W.shift))
+    , ("M-<Space>", sendMessage NextLayout)
+    , ("M-o", sendMessage Expand)
+    , ("M-i", sendMessage Shrink)
+    , ("M-,", sendMessage (IncMasterN 1))
+    , ("M-.", sendMessage (IncMasterN (-1)))
+    , ("M-s", sinkAll)
+    , ("M-y", focusUrgent)
+    , ("M-;", switchLayer)
+    , ("M-h", windowGo L True)
+    , ("M-j", windowGo D True)
+    , ("M-k", windowGo U True)
+    , ("M-l", windowGo R True)
+    , ("M-S-<L>", withFocused (keysResizeWindow (-30,0) (0,0))) --shrink float at right
+    , ("M-S-<R>", withFocused (keysResizeWindow (30,0) (0,0))) --expand float at right
+    , ("M-S-<D>", withFocused (keysResizeWindow (0,30) (0,0))) --expand float at bottom
+    , ("M-S-<U>", withFocused (keysResizeWindow (0,-30) (0,0))) --shrink float at bottom
+    , ("M-C-<L>", withFocused (keysResizeWindow (30,0) (1,0))) --expand float at left
+    , ("M-C-<R>", withFocused (keysResizeWindow (-30,0) (1,0))) --shrink float at left
+    , ("M-C-<U>", withFocused (keysResizeWindow (0,30) (0,1))) --expand float at top
+    , ("M-C-<D>", withFocused (keysResizeWindow (0,-30) (0,1))) --shrink float at top
+    , ("M-<L>", withFocused (keysMoveWindow (-30,0)))
+    , ("M-<R>", withFocused (keysMoveWindow (30,0)))
+    , ("M-<U>", withFocused (keysMoveWindow (0,-30)))
+    , ("M-<D>", withFocused (keysMoveWindow (0,30)))
+    , ("C-; <L>", withFocused $ snapMove L Nothing)
+    , ("C-; <R>", withFocused $ snapMove R Nothing)
+    , ("C-; <U>", withFocused $ snapMove U Nothing)
+    , ("C-; <D>", withFocused $ snapMove D Nothing)
+
+    -- dynamic workspace
+    , ("C-; w n", addWorkspacePrompt myXPConfig)
+    , ("C-; w k", removeWorkspace)
+    , ("C-; w r", killAll >> removeWorkspace)
+
+    -- Volume
+    -- , ("C-; 9", spawn "change_volume down")
+    -- , ("C-; 0", spawn "change_volume up")
+    -- , ("C-; m", spawn "change_volume toggle")
+
+    -- preferred cui programs
+
+    , ("C-; C-;", pasteChar controlMask ';')
+    , ("C-' C-'", pasteChar controlMask '\'')
+    , ("C-' g", namedScratchpadAction scratchpads "ghci")
+    , ("C-' l", namedScratchpadAction scratchpads "lua")
+    , ("C-' c", namedScratchpadAction scratchpads "scala")
+
+    , ("C-' q", namedScratchpadAction scratchpads "swipl")
+    , ("C-' o", namedScratchpadAction scratchpads "ocaml")
+    , ("C-' e", namedScratchpadAction scratchpads "erl")
+    , ("C-' p", namedScratchpadAction scratchpads "ipython")
+    , ("C-' r", namedScratchpadAction scratchpads "pry")
+    , ("C-' s", namedScratchpadAction scratchpads "gst")
+    , ("C-' j", namedScratchpadAction scratchpads "node")
+    , ("C-' f", namedScratchpadAction scratchpads "coffee")
+    , ("C-' a", namedScratchpadAction scratchpads "alsamixer")
+    , ("C-' m", namedScratchpadAction scratchpads "ncmpcpp")
+    , ("C-' h", namedScratchpadAction scratchpads "htop")
+
+    , ("C-; <Space>", sendMessage $ Toggle NBFULL)
+    , ("C-; l f", sendMessage $ Toggle NBFULL)
+    , ("C-; l x", sendMessage $ Toggle REFLECTX)
+    , ("C-; l y", sendMessage $ Toggle REFLECTY)
+    , ("C-; l m", sendMessage $ Toggle MIRROR)
+    , ("C-; l b", sendMessage $ Toggle NOBORDERS)
+
+    -- prompts
+    , ("C-; b", workspacePrompt myXPConfig $ switchTopic myTopicConfig)
+    , ("C-; m", workspacePrompt myXPConfig $ windows . W.shift)
+    , ("C-; p c", mainCommandPrompt myXPConfig)
+    , ("C-; p d", changeDir myXPConfig)
+    -- , ("C-; p f", fadePrompt myXPConfig)
+    , ("C-; p m", manPrompt myXPConfig)
+    -- , ("M-p e", launchApp myXPConfig "evince" ["pdf","ps"])
+    -- , ("M-p F", launchApp myXPConfig "feh" ["png","jpg","gif"])
+    -- , ("M-p l", launchApp myXPConfig "llpp" ["pdf","ps"])
+    -- , ("M-p m", launchApp myXPConfig "mupdf" ["pdf","ps"])
+    -- , ("M-p z", launchApp myXPConfig "zathura" ["pdf","ps"])
+    , ("C-; p p", runOrRaisePrompt myXPConfig)
+    , ("M-p", runOrRaisePrompt myXPConfig)
+    ]
+    ++  searchBindings
+{-
+ - Topic
+ -}
+data TopicItem = TI { topicName :: Topic
+                    , topicDir  :: Dir
+                    , topicAction :: X ()
+                    }
+
+myTopicNames :: [Topic]
+myTopicNames = map topicName myTopics
+
+myTopicConfig :: TopicConfig
+myTopicConfig = TopicConfig
+    { topicDirs = M.fromList $ map (\(TI n d _ ) -> (n,d)) myTopics
+    , defaultTopicAction = const (return ())
+    , defaultTopic = "web"
+    , maxTopicHistory = 10
+    , topicActions = M.fromList $ map (\(TI n _ a ) -> (n,a)) myTopics
     }
+
+myTopics :: [TopicItem]
+myTopics =
+    [ TI "web" "" (spawn "firefox")
+    , TI "code" "" (spawn "emacs")
+    , TI "term" "" (spawn "urxvt")
+    , TI "chat" "" (return ())
+    , TI "doc" "Documents/" (spawn "nemo")
+    , TI "gimp" "" (return ())
+    , TI "media" "" (return ())
+    , TI "dict" "" (return ())
+    ]
+  where
+    urxvt prog = spawn . ("urxvtc -T "++) . ((++) . head $ words prog) . (" -e "++) . (prog++) $ ""
+
+myPromptKeymap = M.union defaultXPKeymap $ M.fromList
+                 [
+                   ((controlMask, xK_g), quit)
+                 , ((controlMask, xK_m), setSuccess True >> setDone True)
+                 , ((controlMask, xK_j), setSuccess True >> setDone True)
+                 , ((controlMask, xK_h), deleteString Prev)
+                 , ((controlMask, xK_f), moveCursor Next)
+                 , ((controlMask, xK_b), moveCursor Prev)
+                 , ((controlMask, xK_p), moveHistory W.focusDown')
+                 , ((controlMask, xK_n), moveHistory W.focusUp')
+                 , ((mod1Mask, xK_p), moveHistory W.focusDown')
+                 , ((mod1Mask, xK_n), moveHistory W.focusUp')
+                 , ((mod1Mask, xK_b), moveWord Prev)
+                 , ((mod1Mask, xK_f), moveWord Next)
+                 ]
+
+myXPConfig :: XPConfig
+myXPConfig =
+    defaultXPConfig { font                  = xftFont
+                    , bgColor               = colorDarkGray
+                    , fgColor               = colorGreen
+                    , bgHLight              = colorGreen
+                    , fgHLight              = colorDarkGray
+                    , promptBorderWidth     = 0
+                    , height                = 22
+                    , historyFilter         = deleteConsecutive
+                    , promptKeymap          = myPromptKeymap
+                    }
+
+searchBindings = [ ("M-S-/", S.promptSearch myXPConfig multi) ] ++
+                 [ ("M-/ " ++ name, S.promptSearch myXPConfig e) | e@(S.SearchEngine name _) <- engines, length name == 1 ]
+  where
+    promptSearch (S.SearchEngine _ site)
+      = inputPrompt myXPConfig "Search" ?+ \s ->
+      (S.search "google-chrome" site s >> viewWeb)
+    viewWeb = windows $ W.view "web"
+
+    mk = S.searchEngine
+    engines = [
+      mk "h" "http://www.haskell.org/hoogle/?q="
+      , mk "g" "http://www.google.com/search?num=100&q="
+      , mk "d" "http://dict.cn/"
+      , mk "b" "http://www.baidu.com/s?wd="
+      , mk "w" "http://en.wikipedia.org/wiki/Special:Search?go=Go&search="
+      , mk "y" "http://www.youtube.com/results?search_type=search_videos&search_query="
+      , mk "m" "https://developer.mozilla.org/en-US/search?q="
+      , mk "e" "http://erldocs.com/R15B/mnesia/mnesia.html?search="
+      , mk "r" "http://www.ruby-doc.org/search.html?sa=Search&q="
+      , mk "p" "http://docs.python.org/search.html?check_keywords=yes&area=default&q="
+      , mk "s" "https://scholar.google.de/scholar?q="
+      , mk "i" "https://ixquick.com/do/search?q="
+      , mk "duck" "http://duckduckgo.com/?q="
+      , mk "def" "http://www.google.com/search?q=define:"
+      , mk "img" "http://images.google.com/images?q="
+      , mk "gh" "https://github.com/search?q="
+      , mk "bb" "https://bitbucket.org/repo/all?name="
+      , mk "ud" "http://www.urbandictionary.com/define.php?term="
+      , mk "rtd" "http://readthedocs.org/search/project/?q="
+      , mk "null" "http://nullege.com/codes/search/"
+      , mk "sf" "http://sourceforge.net/search/?q="
+      , mk "acm" "https://dl.acm.org/results.cfm?query="
+      , mk "math" "http://mathworld.wolfram.com/search/?query="
+      ]
+    multi = S.namedEngine "multi" $ foldr1 (S.!>) engines
+
+
+scratchpads =
+  map f ["cmus", "erl", "ghci", "gst", "node", "swipl", "coffee", "ipython"
+         , "livescript", "pry", "R", "alsamixer", "htop", "xosview", "ncmpcpp"] ++
+  [ NS "utop" "urxvtc -T utop -e rlwrap utop" (title =? "utop") doTopRightFloat
+  , NS "task" "urxvtc -T task -e rlwrap task shell" (title =? "task") doTopRightFloat
+  , NS "scala" "urxvtc -T scala -e scala" (title =? "scala") doTopRightFloat
+  , NS "agenda" "org-agenda" (title =? "Agenda Frame") orgFloat
+  , NS "capture" "org-capture" (title =? "Capture Frame") orgFloat
+  , NS "eix-sync" "urxvtc -T eix-sync -e sh -c \"sudo eix-sync; read\"" (title =? "eix-sync") doTopFloat
+  , NS "getmail" "urxvtc -T getmail -e getmail -r rc0 -r rc1" (title =? "getmail") doTopRightFloat
+  ]
+  where
+    urxvt prog = ("urxvtc -T "++) . ((++) . head $ words prog) . (" -e "++) . (prog++) $ ""
+    f s = NS s (urxvt s) (title =? s) doTopRightFloat
+    doSPFloat = customFloating $ W.RationalRect (1/6) (1/6) (4/6) (4/6)
+    doTopFloat = customFloating $ W.RationalRect (1/3) 0 (1/3) (1/3)
+    doTopLeftFloat = customFloating $ W.RationalRect 0 0 (1/3) (1/3)
+    doTopRightFloat = customFloating $ W.RationalRect (2/3) 0 (1/3) (1/3)
+    doBottomLeftFloat = customFloating $ W.RationalRect 0 (2/3) (1/3) (1/3)
+    doBottomRightFloat = customFloating $ W.RationalRect (2/3) (2/3) (1/3) (1/3)
+    doLeftFloat = customFloating $ W.RationalRect 0 0 (1/3) 1
+    orgFloat = customFloating $ W.RationalRect (1/2) (1/2) (1/2) (1/2)
+
+data TitledPrompt = TitledPrompt String
+
+instance XPrompt TitledPrompt where
+    showXPrompt (TitledPrompt t)  = t ++ ": "
+    commandToComplete _ c   = c
+    nextCompletion    _     = getNextCompletion
+
+mkCommandPrompt :: XPConfig -> [(String, X ())] -> X ()
+mkCommandPrompt xpc cs = do
+    mkXPrompt (TitledPrompt "Command") xpc compl $ \i -> whenJust (find ((==i) . fst) cs) snd
+  where
+    compl s = return . filter (searchPredicate xpc s) . map fst $ cs
+
+mainCommandPrompt xpc = do
+  defs <- defaultCommands
+  mkCommandPrompt xpc $ nubBy ((==) `on` fst) $ myCommands ++ defs
+
+getFilesWithExt :: [String] -> String -> IO [String]
+getFilesWithExt exts s = fmap lines $ runProcessWithInput "sh" [] ("ls -d -- " ++ s ++ "*/ " ++ s ++ "*." ++ f ++ "\n")
+  where
+    f = if length exts == 1 then head exts else ('{':) . (++"}") $ intercalate "," exts
+
+{- | Get the user's response to a prompt an launch an application using the
+   input as command parameters of the application.-}
+launchApp :: XPConfig -> String -> [String] -> X ()
+launchApp config app exts = mkXPrompt (TitledPrompt app) config (getFilesWithExt exts) $ launch app
+  where
+    launch :: MonadIO m => String -> String -> m ()
+    launch app params = spawn $ app ++ " " ++ completionToCommand (undefined :: Shell) params
