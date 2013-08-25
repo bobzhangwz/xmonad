@@ -1,10 +1,22 @@
 #!/bin/bash
-xrandr --output VGA1 --primary --right-of LVDS1 --mode 1680x1050 --output LVDS1 --mode 1366x768 &
-python /home/software/goagent/local/proxy.py &
+sproc () {
+    if pgrep -u poe $1 &> /dev/null;
+    then
+        echo alive &> /dev/null
+    else
+        $($2) &
+    fi
+};
+
+# xrandr --output VGA1 --primary --right-of LVDS1 --mode 1680x1050 --output LVDS1 --off
 # /usr/share/conkycolors/bin/conkyStart &
-xcompmgr -c &
-firefox &
-emacs &
-pidgin &
-urxvtd -q -f -o &
-conky -c ~/.conkycolors/conkyrc &
+# xrandr --output VGA1 --primary --right-of LVDS1 --mode 1680x1050 --output LVDS1 --mode 1366x768 &
+# sproc 'xcompmgr' 'xcompmgr -c'
+# sproc 'fcitx' 'fcitx'
+sproc 'firefox' 'firefox'
+sproc 'parcellite' 'parcellite'
+sproc 'emacs' 'emacs'
+sproc 'pidgin'  'pidgin'
+sproc 'urxvtd' 'urxvtd -q -f -o'
+sproc 'conky' 'conky -c /home/p3oe/.conkycolors/conkyrc'
+sproc trayer 'trayer --edge bottom --align right --SetDockType true --SetPartialStrut false --expand true --widthtype request --transparent true --tint 0x191234 --height 20 --distance 40 --distancefrom right'

@@ -89,7 +89,7 @@ import XMonad.Layout.WorkspaceDir
 import XMonad.Layout.WindowSwitcherDecoration
 import XMonad.Layout.DraggingVisualizer
 import qualified XMonad.Layout.Magnifier as Mag
-
+import XMonad.Hooks.DynamicLog
 
 -- Theme {{{
 -- Color names are easier to remember:
@@ -109,37 +109,49 @@ xftFont = "xft: inconsolata-14"
 
 main :: IO ()
 main = do
+  checkTopicConfig myTopicNames myTopicConfig
   init <- spawn "~/.xmonad/startxmonad"
-  d <- openDisplay ""
-  let w = fromIntegral $ displayWidth d 0 :: Int
-      h = fromIntegral $ displayHeight d 0 :: Int
-  let barWidth = h `div` 13
-  let barHeight = h `div` 35
-  let fontSize = h `div` 54
-  dzen <- spawnPipe $ "killall dzen2; dzen2 -x " ++ (show $ barWidth*5) ++ " -h " ++ show barHeight ++ " -ta right -fg '#a8a3f7' -fn 'WenQuanYi Micro Hei-" ++ show fontSize ++ "'"
-  -- remind <http://www.roaringpenguin.com/products/remind>
-  -- dzenRem <- spawnBash $ "rem | tail -n +3 | grep . | { read a; while read t; do b[${#b[@]}]=$t; echo $t; done; { echo $a; for a in \"${b[@]}\"; do echo $a; done; } | dzen2 -p -x " ++ show barWidth ++ " -w " ++ (show $ barWidth*4) ++ " -h " ++ show barHeight ++ " -ta l -fg '#a8a3f7' -fn 'WenQuanYi Micro Hei-" ++ show fontSize ++ "' -l ${#b[@]}; }"
-  spawn $ "killall trayer; trayer --align left --edge top --expand false --width " ++ show barWidth ++ " --transparent true --tint 0x000000 --widthtype pixel --SetPartialStrut true --SetDockType true --height " ++ show barHeight
-  xmonad =<< myConfig dzen
+  xmonad =<< statusBar cmd myXmobarPP toggleStrutsKey config
+  where
+    -- cmd = "bash -c \"tee >(xmobar -x0) | xmobar -x1\""
+    cmd = "xmobar ~/.xmonad/xmobar.hs -x1"
+    toggleStrutsKey :: XConfig t -> (KeyMask, KeySym)
+    toggleStrutsKey XConfig{modMask = modm} = (modm, xK_b )
+    config = ewmh $ withNavigation2DConfig myNavigation2DConfig $
+             withUrgencyHook NoUrgencyHook $ defaultConfig {
+               terminal    = "urxvtc"
+               , modMask     = mod4Mask
+               , workspaces  = myTopicNames
+               , borderWidth = 2
+               , layoutHook  = layoutHook'
+               , manageHook  = manageHook'
+               } `additionalKeysP` myKeys
 
 myGSConfig = ["xrandr --output VGA1 --primary", "google-chrome", "conky -c ~/.conkycolors/conkyrc"
-              , "eclipse", "firefox", "urxvtd -q -f -o"]
+              , "eclipse", "firefox", "urxvtd -q -f -o"
+              , "# xrandr --output VGA1 --primary --right-of LVDS1 --mode 1680x1050 --output LVDS1 --off"]
 
-myCommands = []
+myCommands = [
+  -- ("getmail", namedScratchpadAction scratchpads "getmail")
+  -- , ("wallpaper", safeSpawn "change-wallpaper" [])
+             ]
 
-myConfig dzen = do
-  checkTopicConfig myTopicNames myTopicConfig
-  return
-    $ ewmh $ withNavigation2DConfig myNavigation2DConfig $
-    withUrgencyHook NoUrgencyHook $ defaultConfig {
-      terminal    = "urxvtc"
-      , modMask     = mod4Mask
-      , workspaces  = myTopicNames
-      , borderWidth = 2
-      , layoutHook  = layoutHook'
-      , manageHook  = manageHook'
-      , logHook = myDynamicLog dzen
-      } `additionalKeysP` myKeys
+myXmobarPP = defaultPP {
+  ppCurrent = xmobarColor "#429942" "" . wrap "@" ""
+  , ppVisible = xmobarColor "#429942" ""
+  , ppHidden = xmobarColor "#C98F0A" ""
+  , ppHiddenNoWindows = const ""
+  , ppUrgent = xmobarColor "#FFFFAF" "" . wrap "[" "]"
+  , ppLayout = xmobarColor "#C9A34E" ""
+               . shorten 5
+               . flip (subRegex (mkRegex "ReflectX")) "[|]"
+               . flip (subRegex (mkRegex "ReflectY")) "[-]"
+               . flip (subRegex (mkRegex "Mirror")) "[+]"
+  , ppTitle = xmobarColor "#C9A34E" "" . shorten 24
+  , ppSep = xmobarColor "#429942" "" " | "
+  -- , ppOrder  = \(ws:l:t:exs) -> []++exs
+  , ppSort   = fmap (namedScratchpadFilterOutWorkspace.) (ppSort byorgeyPP)
+  }
 
 manageHook' :: ManageHook
 manageHook' = composeAll . concat $
@@ -250,9 +262,10 @@ myKeys =
     ]
     ++
     [
-      ("M-S-q", io exitFailure)
-    -- , ("M-q", spawn "gnome-session-quit --power-off")
-    , ("M-q", spawn "ghc -e ':m +XMonad Control.Monad System.Exit' -e 'flip unless exitFailure =<< recompile False' && xmonad --restart")
+      -- ("M-S-q", io (exitWith ExitSuccess))
+      ("M-S-q", spawn "gnome-session-quit")
+    , ("M-q", spawn "gnome-session-quit --power-off")
+    -- , ("M-q", spawn "ghc -e ':m +XMonad Control.Monad System.Exit' -e 'flip unless exitFailure =<< recompile False' && xmonad --restart")
     , ("M-S-c", kill)
 
     -- , ("<Print>", spawn "import /tmp/screen.jpg")
@@ -265,17 +278,20 @@ myKeys =
     , ("C-; o d", spawn "xkill")
     -- , ("<XF86AudioNext>", spawn "mpc_seek forward")
     -- , ("<XF86AudioPrev>", spawn "mpc_seek backward")
-    -- , ("<XF86AudioRaiseVolume>", spawn "change_volume up")
-    -- , ("<XF86AudioLowerVolume>", spawn "change_volume down")
-    -- , ("<XF86AudioMute>", spawn "amixer set Master mute")
+    , ("<XF86AudioRaiseVolume>", spawn "amixer sset Master 9+")
+    , ("<XF86AudioLowerVolume>", spawn "amixer sset Master 9-")
+
+    , ("M--", spawn "amixer sset Master 9-")
+    , ("M-=", spawn "amixer sset Master 9+")
+    , ("<XF86AudioMute>", spawn "amixer set Master mute")
     -- , ("<XF86AudioPlay>", spawn "mpc toggle")
-    -- , ("<XF86Eject>", spawn "eject")
+    , ("<XF86Eject>", spawn "eject")
     , ("M-S-a", sendMessage Taller)
     , ("M-S-z", sendMessage Wider)
     , ("C-; o f", placeFocused $ withGaps (22, 0, 0, 0) $ smart (0.5,0.5))
 
     -- window management
-    , ("C-; o s", withFocused $ windows . W.sink)
+    , ("M-s", withFocused $ windows . W.sink)
     , ("C-; o b", windowPromptBring myXPConfig)
     , ("C-; o c", banishScreen LowerRight)
     , ("M-<Tab>", cycleRecentWS [xK_Super_L] xK_Tab xK_Tab)
@@ -287,7 +303,7 @@ myKeys =
     , ("M-i", sendMessage Shrink)
     , ("M-,", sendMessage (IncMasterN 1))
     , ("M-.", sendMessage (IncMasterN (-1)))
-    , ("M-s", sinkAll)
+    , ("C-; o s", sinkAll)
     , ("M-y", focusUrgent)
     , ("M-;", switchLayer)
     , ("M-h", windowGo L True)
@@ -386,8 +402,8 @@ myTopicConfig = TopicConfig
 
 myTopics :: [TopicItem]
 myTopics =
-    [ TI "web" "" (spawn "firefox")
-    , TI "code" "" (spawn "emacs")
+    [ TI "web" "" (return ())
+    , TI "code" "" (return ())
     , TI "term" "" (spawn "urxvt")
     , TI "chat" "" (return ())
     , TI "doc" "Documents/" (spawn "nemo")
@@ -516,25 +532,3 @@ launchApp config app exts = mkXPrompt (TitledPrompt app) config (getFilesWithExt
   where
     launch :: MonadIO m => String -> String -> m ()
     launch app params = spawn $ app ++ " " ++ completionToCommand (undefined :: Shell) params
-
-
-myDynamicLog h = dynamicLogWithPP $ defaultPP
-  {
-    -- ppCurrent = ap clickable (wrap "^i(/home/ray/.xmonad/icons/default/" ")" . fromMaybe "application-default-icon.xpm" . flip M.lookup myIcons)
-  -- , ppHidden = ap clickable (wrap "^i(/home/ray/.xmonad/icons/gray/" ")" . fromMaybe "application-default-icon.xpm" . flip M.lookup myIcons)
-  -- , ppUrgent = ap clickable (wrap "^i(/home/ray/.xmonad/icons/highlight/" ")" . fromMaybe "application-default-icon.xpm" . flip M.lookup myIcons)
-    ppSep = dzenColor "#0033FF" "" " | "
-  , ppWsSep = ""
-  , ppTitle  = dzenColor "green" "" . shorten 45
-  , ppLayout = flip (subRegex (mkRegex "ReflectX")) "[|]" .
-      flip (subRegex (mkRegex "ReflectY")) "[-]" .
-      flip (subRegex (mkRegex "Mirror")) "[+]"
-  , ppOrder  = \(ws:l:t:exs) -> [t,l,ws]++exs
-  , ppSort   = fmap (namedScratchpadFilterOutWorkspace.) (ppSort byorgeyPP)
-  , ppExtras = [ dzenColorL "violet" "" $ date "%R %a %y-%m-%d"
-               , dzenColorL "orange" "" battery
-               ]
-  , ppOutput = hPutStrLn h
-  }
-  -- where
-    -- clickable w = wrap ("^ca(1,wmctrl -s `wmctrl -d | grep "++w++" | cut -d' ' -f1`)") "^ca()"
