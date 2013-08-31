@@ -15,7 +15,7 @@ sproc () {
 # sproc 'fcitx' 'fcitx'
 sproc 'firefox' 'firefox'
 sproc 'parcellite' 'parcellite'
-sproc 'emacs' 'emacs'
+sproc 'emacs' 'emacs -daemon'
 sproc 'pidgin'  'pidgin'
 sproc 'urxvtd' 'urxvtd -q -f -o'
 sproc 'conky' 'conky -c /home/p3oe/.conkycolors/conkyrc'

@@ -90,6 +90,7 @@ import XMonad.Layout.WindowSwitcherDecoration
 import XMonad.Layout.DraggingVisualizer
 import qualified XMonad.Layout.Magnifier as Mag
 import XMonad.Hooks.DynamicLog
+import XMonad.Hooks.FadeWindows
 
 -- Theme {{{
 -- Color names are easier to remember:
@@ -124,12 +125,14 @@ main = do
                , workspaces  = myTopicNames
                , borderWidth = 2
                , layoutHook  = layoutHook'
+               , logHook = fadeWindowsLogHook myFadeHook
+               , handleEventHook = fadeWindowsEventHook
                , manageHook  = manageHook'
                } `additionalKeysP` myKeys
 
 myGSConfig = ["xrandr --output VGA1 --primary", "google-chrome", "conky -c ~/.conkycolors/conkyrc"
-              , "eclipse", "firefox", "urxvtd -q -f -o"
-              , "# xrandr --output VGA1 --primary --right-of LVDS1 --mode 1680x1050 --output LVDS1 --off"]
+              , "eclipse", "firefox", "urxvtd -q -f -o", "emacsclient -c"
+              , "xrandr --output LVDS1 --off"]
 
 myCommands = [
   -- ("getmail", namedScratchpadAction scratchpads "getmail")
@@ -152,6 +155,10 @@ myXmobarPP = defaultPP {
   -- , ppOrder  = \(ws:l:t:exs) -> []++exs
   , ppSort   = fmap (namedScratchpadFilterOutWorkspace.) (ppSort byorgeyPP)
   }
+
+myFadeHook = composeAll [isUnfocused --> transparency 0.5
+                        ,                transparency 0.18
+                        ]
 
 manageHook' :: ManageHook
 manageHook' = composeAll . concat $
@@ -200,7 +207,7 @@ manageHook' = composeAll . concat $
               , "opera", "Opera", "Chromium", "Google-chrome"]
       myChat = ["Pidgin Internet Messenger", "Buddy List"
                , "skype", "skype-wrapper", "Skype", "Conky"]
-      myCode = ["geany", "eclipse", "Eclipse", "Emacs24", "Gvim", "emacs"]
+      myCode = ["geany", "eclipse", "Eclipse", "Emacs24", "Gvim", "emacs", "emacsclient"]
       myTerm = ["gnome-terminal"]
       myGimp = ["Gimp", "GIMP Image Editor"]
       myMedia = ["Rhythmbox","Spotify","Boxee","Trine"]
@@ -347,7 +354,7 @@ myKeys =
 
     , ("C-' q", namedScratchpadAction scratchpads "swipl")
     , ("C-' o", namedScratchpadAction scratchpads "ocaml")
-    , ("C-' e", namedScratchpadAction scratchpads "erl")
+    , ("C-' e", namedScratchpadAction scratchpads "emacs")
     , ("C-' p", namedScratchpadAction scratchpads "ipython")
     , ("C-' r", namedScratchpadAction scratchpads "pry")
     , ("C-' s", namedScratchpadAction scratchpads "gst")
@@ -403,7 +410,7 @@ myTopicConfig = TopicConfig
 myTopics :: [TopicItem]
 myTopics =
     [ TI "web" "" (return ())
-    , TI "code" "" (return ())
+    , TI "code" "" (urxvt "emacsclient '-nw'")
     , TI "term" "" (spawn "urxvt")
     , TI "chat" "" (return ())
     , TI "doc" "Documents/" (spawn "nemo")
@@ -486,6 +493,7 @@ scratchpads =
   [ NS "utop" "urxvtc -T utop -e rlwrap utop" (title =? "utop") doTopRightFloat
   , NS "task" "urxvtc -T task -e rlwrap task shell" (title =? "task") doTopRightFloat
   , NS "scala" "urxvtc -T scala -e scala" (title =? "scala") doTopRightFloat
+  , NS "emacs" "urxvtc -T emac -e emacsclient '-nw'" (title =? "scala") doTopRightFloat
   , NS "agenda" "org-agenda" (title =? "Agenda Frame") orgFloat
   , NS "capture" "org-capture" (title =? "Capture Frame") orgFloat
   , NS "eix-sync" "urxvtc -T eix-sync -e sh -c \"sudo eix-sync; read\"" (title =? "eix-sync") doTopFloat
