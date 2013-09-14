@@ -102,7 +102,7 @@ colorBlue           = "#66D9EF"
 colorYellow         = "#E6DB74"
 colorWhite          = "#CCCCC6"
 colorNormalBorder   = "#CCCCCp6"
-colorFocusedBorder  = "#fd971f"
+colorFocusedBorder  = colorPink
 barFont  = "terminus"
 barXFont = "inconsolata:size=12"
 xftFont = "xft: inconsolata-14"
@@ -120,18 +120,19 @@ main = do
     toggleStrutsKey XConfig{modMask = modm} = (modm, xK_b )
     config = ewmh $ withNavigation2DConfig myNavigation2DConfig $
              withUrgencyHook NoUrgencyHook $ defaultConfig {
-               terminal    = "urxvtc"
-               , modMask     = mod4Mask
-               , workspaces  = myTopicNames
-               , borderWidth = 2
-               , layoutHook  = layoutHook'
-               , logHook = fadeWindowsLogHook myFadeHook
-               , handleEventHook = fadeWindowsEventHook
-               , manageHook  = manageHook'
+               terminal             = "urxvtc"
+               , modMask            = mod4Mask
+               , workspaces         = myTopicNames
+               , borderWidth        = 3
+               , layoutHook         = layoutHook'
+               , focusedBorderColor = colorFocusedBorder
+               , logHook            = fadeWindowsLogHook myFadeHook
+               , handleEventHook    = fadeWindowsEventHook
+               , manageHook         = manageHook'
                } `additionalKeysP` myKeys
 
 myGSConfig = ["xrandr --output VGA1 --primary", "google-chrome", "conky -c ~/.conkycolors/conkyrc"
-              , "eclipse", "firefox", "urxvtd -q -f -o", "emacsclient -c"
+              , "eclipse", "firefox", "urxvtd -q -f -o", "emacsclient -c", "emacs -daemon"
               , "xrandr --output LVDS1 --off"]
 
 myCommands = [
@@ -140,11 +141,11 @@ myCommands = [
              ]
 
 myXmobarPP = defaultPP {
-  ppCurrent = xmobarColor "#429942" "" . wrap "@" ""
+  ppCurrent = xmobarColor "#429942" "" . wrap "[" "]"
   , ppVisible = xmobarColor "#429942" ""
   , ppHidden = xmobarColor "#C98F0A" ""
   , ppHiddenNoWindows = const ""
-  , ppUrgent = xmobarColor "#FFFFAF" "" . wrap "[" "]"
+  , ppUrgent = xmobarColor "#FFFFAF" "" . wrap "" ""
   , ppLayout = xmobarColor "#C9A34E" ""
                . shorten 5
                . flip (subRegex (mkRegex "ReflectX")) "[|]"
@@ -223,7 +224,7 @@ layoutHook' = onWorkspaces ["gimp"] gimpLayout $
               customLayout
   where
     customLayout = avoidStruts $
-                   configurableNavigation (navigateColor "#00aa00") $
+                   -- configurableNavigation (navigateColor "#00aa00") $
                    -- mkToggle1 TABBED $
                    mkToggle1 NBFULL $
                    mkToggle1 REFLECTX $
@@ -231,12 +232,13 @@ layoutHook' = onWorkspaces ["gimp"] gimpLayout $
                    mkToggle1 MIRROR $
                    mkToggle1 NOBORDERS $
                    smartBorders $
-                   Full ||| ResizableTall 1 (3/100) (1/2) []
-                   ||| mosaic 1.5 [7,5,2]
-                   ||| autoMaster 1 (1/20) (Mag.magnifier Grid)
-                   ||| HintedGrid.GridRatio (4/3) False
+                   -- Full
+                   mosaic 1.5 [7,5,2]
                    ||| simpleFloat
                    ||| dragPane Horizontal 0.1 0.3
+                   ||| ResizableTall 1 (3/100) (1/2) []
+                   ||| autoMaster 1 (1/20) (Mag.magnifier Grid)
+                   ||| HintedGrid.GridRatio (4/3) False
 
     gimpLayout = avoidStruts $ withIM (0.11) (Role "gimp-toolbox") $
                  reflectHoriz $
@@ -271,13 +273,16 @@ myKeys =
     [
       -- ("M-S-q", io (exitWith ExitSuccess))
       ("M-S-q", spawn "gnome-session-quit")
-    , ("M-q", spawn "gnome-session-quit --power-off")
+      -- ("M-S-q", namedScratchpadAction scratchpads "reboot")
+    , ("M-q", namedScratchpadAction scratchpads "shutdown")
     -- , ("M-q", spawn "ghc -e ':m +XMonad Control.Monad System.Exit' -e 'flip unless exitFailure =<< recompile False' && xmonad --restart")
     , ("M-S-c", kill)
 
     -- , ("<Print>", spawn "import /tmp/screen.jpg")
     -- , ("C-<Print>", spawn "import -window root /tmp/screen.jpg")
-    , ("M-<Return>", spawn "urxvtc" >> sendMessage (JumpToLayout "ResizableTall"))
+    -- , ("M-<Return>", spawn "urxvtc -e tmux attach" >> sendMessage (JumpToLayout "Mosaic"))
+    , ("M-<Return>", windows W.swapMaster)
+    , ("M-S-<Return>", spawn "urxvtc")
     , ("C-; o o", spawnSelected defaultGSConfig myGSConfig)
     , ("C-; o k", kill)
     , ("C-; o i", spawn "xcalib -i -a")
@@ -351,7 +356,7 @@ myKeys =
     , ("C-' g", namedScratchpadAction scratchpads "ghci")
     , ("C-' l", namedScratchpadAction scratchpads "lua")
     , ("C-' c", namedScratchpadAction scratchpads "scala")
-
+    , ("C-' z", namedScratchpadAction scratchpads "zsh")
     , ("C-' q", namedScratchpadAction scratchpads "swipl")
     , ("C-' o", namedScratchpadAction scratchpads "ocaml")
     , ("C-' e", namedScratchpadAction scratchpads "emacs")
@@ -488,15 +493,16 @@ searchBindings = [ ("M-S-/", S.promptSearch myXPConfig multi) ] ++
 
 
 scratchpads =
-  map f ["cmus", "erl", "ghci", "gst", "node", "swipl", "coffee", "ipython"
-         , "livescript", "pry", "R", "alsamixer", "htop", "xosview", "ncmpcpp"] ++
+  map f ["cmus", "erl", "ghci", "gst", "node", "swipl", "coffee", "ipython", "zsh"
+         , "livescript", "pry", "R", "alsamixer", "htop", "xosview", "ncmpcpp"
+         , "scala"] ++
   [ NS "utop" "urxvtc -T utop -e rlwrap utop" (title =? "utop") doTopRightFloat
   , NS "task" "urxvtc -T task -e rlwrap task shell" (title =? "task") doTopRightFloat
-  , NS "scala" "urxvtc -T scala -e scala" (title =? "scala") doTopRightFloat
-  , NS "emacs" "urxvtc -T emac -e emacsclient '-nw'" (title =? "scala") doTopRightFloat
+  , NS "emacs" "urxvtc -T emacs -e emacsclient '-nw'" (title =? "emacs") doTopRightFloat
   , NS "agenda" "org-agenda" (title =? "Agenda Frame") orgFloat
   , NS "capture" "org-capture" (title =? "Capture Frame") orgFloat
-  , NS "eix-sync" "urxvtc -T eix-sync -e sh -c \"sudo eix-sync; read\"" (title =? "eix-sync") doTopFloat
+  , NS "shutdown" "urxvtc -T shutdown -e sh -c \"sudo shutdown -h 0\"" (title =? "shutdown") doTopFloat
+  , NS "reboot" "urxvtc -T reboot -e sh -c \"sudo reboot\"" (title =? "reboot") doTopFloat
   , NS "getmail" "urxvtc -T getmail -e getmail -r rc0 -r rc1" (title =? "getmail") doTopRightFloat
   ]
   where
