@@ -133,7 +133,7 @@ main = do
 
 myGSConfig = ["xrandr --output VGA1 --primary", "google-chrome", "conky -c ~/.conkycolors/conkyrc"
               , "eclipse", "firefox", "urxvtd -q -f -o", "emacsclient -c", "emacs -daemon"
-              , "xrandr --output LVDS1 --off"]
+              , "xrandr --output LVDS1 --off", "google-chrome --incognito"]
 
 myCommands = [
   -- ("getmail", namedScratchpadAction scratchpads "getmail")
@@ -147,7 +147,7 @@ myXmobarPP = defaultPP {
   , ppHiddenNoWindows = const ""
   , ppUrgent = xmobarColor "#FFFFAF" "" . wrap "" ""
   , ppLayout = xmobarColor "#C9A34E" ""
-               . shorten 5
+               . shorten 10
                . flip (subRegex (mkRegex "ReflectX")) "[|]"
                . flip (subRegex (mkRegex "ReflectY")) "[-]"
                . flip (subRegex (mkRegex "Mirror")) "[+]"
@@ -163,26 +163,30 @@ myFadeHook = composeAll [isUnfocused --> transparency 0.5
 
 manageHook' :: ManageHook
 manageHook' = composeAll . concat $
-    [ [isDialog --> doFloat]
+    [
+      [isDialog --> doFloat]
     , [isFullscreen --> doFullFloat]
-    , [resource =? r --> doCenterFloat | r <- myRFloats]
     , [(className =? i <||> resource =? i) --> doIgnore | i <- myIgnores]
     , [(className =? x <||> title =? x <||> resource =? x) --> doSink | x <- mySinks]
     , [(className =? x <||> title =? x <||> resource =? x) --> doFullFloat | x <- myFullscreens]
     , [(className =? x <||> title =? x <||> resource =? x) --> doShift "web" | x <- myWeb]
     , [(className =? x <||> title =? x <||> resource =? x) --> doShift "code" | x <- myCode]
     , [(className =? x <||> title =? x <||> resource =? x) --> doShift "doc" | x <- myDoc]
-    , [(className =? x <||> title =? x <||> resource =? x) --> doShift "term" | x <- myTerm]
+    , [(className =? x <||> title =? x <||> resource =? x) --> doShift "code2" | x <- myCode2]
     , [(className =? x <||> title =? x <||> resource =? x) --> doShift "chat" | x <- myChat]
     , [(className =? x <||> title =? x <||> resource =? x) --> doShiftAndGo "media" | x <- myMedia]
     , [(className =? x <||> title =? x <||> resource =? x) --> doShiftAndGo "gimp" | x <- myGimp]
     , [title =? t --> doCenterFloat | t <- myTFloats]
     , [className =? c --> doCenterFloat | c <- myCFloats]
-    , [name =? n --> doCenterFloat | n<- myNFloats]
+    , [name =? n --> doCenterFloat | n <- myNFloats]
     , [manageDocks , namedScratchpadManageHook scratchpads ]
+    , [resource =? r --> doCenterFloat | r <- myRFloats]
+    , [role =? r --> doCenterFloat | r <- myRolesF]
     ]
     where
       name = stringProperty "WM_NAME"
+      role = stringProperty "WM_WINDOW_ROLE"
+      -- popup = stringProperty "WM_WINDOW_ROLE"
       -- Hook used to shift windows without focusing them
       doShiftAndGo = doF . liftM2 (.) W.greedyView W.shift
       -- Hook used to push floating windows back into the layout
@@ -191,9 +195,11 @@ manageHook' = composeAll . concat $
       -- Float dialogs, Download windows and Save dialogs
       myCFloats = ["Sysinfo", "XMessage", "Smplayer","MPlayer", "nemo", "Toplevel"
                   , "Xmessage","XFontSel","Downloads","Nm-connection-editor", "Pidgin"]
+
       myTFloats = ["Downloads", "Save As..."]
       myRFloats = ["Dialog"]
-      myNFloats   = ["bashrun","Google Chrome Options","Chromium Options"
+      myRolesF = ["pop-up"]
+      myNFloats   = ["bashrun","Google Chrome Options","Chromium Options", "Hangouts"
                     , "System Settings", "Library", "Firefox Preference"]
       myDoc = []
       mySinks = ["gimp"]
@@ -205,11 +211,11 @@ manageHook' = composeAll . concat $
 
       -- Define default workspaces for some programs
       myWeb = ["Firefox-bin", "Firefox",  "Firefox Web Browser"
-              , "opera", "Opera", "Chromium", "Google-chrome"]
+              , "opera", "Opera", "Chromium"]
       myChat = ["Pidgin Internet Messenger", "Buddy List"
                , "skype", "skype-wrapper", "Skype", "Conky"]
-      myCode = ["geany", "eclipse", "Eclipse", "Emacs24", "Gvim", "emacs", "emacsclient"]
-      myTerm = ["gnome-terminal"]
+      myCode = ["geany", "Emacs24", "Gvim", "emacs", "emacsclient"]
+      myCode2 = ["gnome-terminal", "eclipse", "Eclipse"]
       myGimp = ["Gimp", "GIMP Image Editor"]
       myMedia = ["Rhythmbox","Spotify","Boxee","Trine"]
 
@@ -295,6 +301,9 @@ myKeys =
 
     , ("M--", spawn "amixer sset Master 9-")
     , ("M-=", spawn "amixer sset Master 9+")
+    , ("M-S--", spawn "amixer sset Master 1-")
+    , ("M-S-=", spawn "amixer sset Master 1+")
+
     , ("<XF86AudioMute>", spawn "amixer set Master mute")
     -- , ("<XF86AudioPlay>", spawn "mpc toggle")
     , ("<XF86Eject>", spawn "eject")
@@ -416,7 +425,8 @@ myTopics :: [TopicItem]
 myTopics =
     [ TI "web" "" (return ())
     , TI "code" "" (urxvt "emacsclient '-nw'")
-    , TI "term" "" (spawn "urxvt")
+    , TI "code2" "" (spawn "urxvt")
+    , TI "assets" "" (return ())
     , TI "chat" "" (return ())
     , TI "doc" "Documents/" (spawn "nemo")
     , TI "gimp" "" (return ())
