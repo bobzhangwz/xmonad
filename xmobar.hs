@@ -21,5 +21,5 @@ Config {font = "xft:monofur-11"
                     ]
        , sepChar = "%"
        , alignSep = "}{"
-       , template = " %StdinReader% }{ %coretemp% <fc=#429942>|</fc> %cpu% <fc=#429942>|</fc> %memory% <fc=#429942>|</fc> %wlan0% <fc=#429942>|</fc> %battery% <fc=#429942>|</fc> %date%                "
+       , template = " %StdinReader% }{ %coretemp% <fc=#429942>|</fc> %cpu% <fc=#429942>|</fc> %memory% <fc=#429942>|</fc> %wlan0% <fc=#429942>|</fc> %battery% <fc=#429942>|</fc> %date%                 "
        }

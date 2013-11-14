@@ -16,7 +16,7 @@ xrandr --output VGA1 --primary --mode 1680x1050 --output LVDS1 --off
 sproc 'firefox' 'firefox'
 sproc 'parcellite' 'parcellite'
 sproc 'emacs' 'emacs -daemon'
-sproc 'pidgin'  'pidgin'
+# sproc 'pidgin'  'pidgin'
 sproc 'urxvtd' 'urxvtd -q -f -o'
 sproc 'conky' 'conky -c /home/p3oe/.conkycolors/conkyrc'
 sproc trayer 'trayer --edge top --align right --SetDockType true --SetPartialStrut false --expand true --widthtype request --transparent true --tint 0x191234 --height 20 --distance 2 --distancefrom right'

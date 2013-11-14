@@ -133,7 +133,7 @@ main = do
 
 myGSConfig = ["xrandr --output VGA1 --primary", "google-chrome", "conky -c ~/.conkycolors/conkyrc"
               , "eclipse", "firefox", "urxvtd -q -f -o", "emacsclient -c", "emacs -daemon"
-              , "xrandr --output LVDS1 --off", "google-chrome --incognito"]
+              , "xrandr --output LVDS1 --off", "google-chrome --incognito", "idea"]
 
 myCommands = [
   -- ("getmail", namedScratchpadAction scratchpads "getmail")
@@ -194,12 +194,13 @@ manageHook' = composeAll . concat $
       doSink = ask >>= \w -> liftX (reveal w) >> doF (W.sink w)
       -- Float dialogs, Download windows and Save dialogs
       myCFloats = ["Sysinfo", "XMessage", "Smplayer","MPlayer", "nemo", "Toplevel"
-                  , "Xmessage","XFontSel","Downloads","Nm-connection-editor", "Pidgin"]
+                  , "Xmessage","XFontSel","Downloads","Nm-connection-editor", "Pidgin", "stardict", "StarDict"]
 
       myTFloats = ["Downloads", "Save As..."]
       myRFloats = ["Dialog"]
       myRolesF = ["pop-up"]
-      myNFloats   = ["bashrun","Google Chrome Options","Chromium Options", "Hangouts"
+      myNFloats   = ["bashrun","Google Chrome Options","Chromium Options"
+                    , "Hangouts", "stardict", "StarDict"
                     , "System Settings", "Library", "Firefox Preference"]
       myDoc = []
       mySinks = ["gimp"]
@@ -215,7 +216,7 @@ manageHook' = composeAll . concat $
       myChat = ["Pidgin Internet Messenger", "Buddy List"
                , "skype", "skype-wrapper", "Skype", "Conky"]
       myCode = ["geany", "Emacs24", "Gvim", "emacs", "emacsclient"]
-      myCode2 = ["gnome-terminal", "eclipse", "Eclipse"]
+      myCode2 = ["gnome-terminal", "eclipse", "Eclipse", "jetbrains-idea-ce", "jetbrains-idea"]
       myGimp = ["Gimp", "GIMP Image Editor"]
       myMedia = ["Rhythmbox","Spotify","Boxee","Trine"]
 
@@ -281,7 +282,7 @@ myKeys =
       ("M-S-q", spawn "gnome-session-quit")
       -- ("M-S-q", namedScratchpadAction scratchpads "reboot")
     , ("M-q", namedScratchpadAction scratchpads "shutdown")
-    -- , ("M-q", spawn "ghc -e ':m +XMonad Control.Monad System.Exit' -e 'flip unless exitFailure =<< recompile False' && xmonad --restart")
+    , ("M-S-r", spawn "ghc -e ':m +XMonad Control.Monad System.Exit' -e 'flip unless exitFailure =<< recompile False' && xmonad --restart")
     , ("M-S-c", kill)
 
     -- , ("<Print>", spawn "import /tmp/screen.jpg")
@@ -361,22 +362,28 @@ myKeys =
     -- preferred cui programs
 
     , ("C-; C-;", pasteChar controlMask ';')
-    , ("C-' C-'", pasteChar controlMask '\'')
-    , ("C-' g", namedScratchpadAction scratchpads "ghci")
-    , ("C-' l", namedScratchpadAction scratchpads "lua")
-    , ("C-' c", namedScratchpadAction scratchpads "scala")
-    , ("C-' z", namedScratchpadAction scratchpads "zsh")
-    , ("C-' q", namedScratchpadAction scratchpads "swipl")
-    , ("C-' o", namedScratchpadAction scratchpads "ocaml")
+    , ("C-' s", namedScratchpadAction scratchpads "stardict")
+    , ("C-' d", namedScratchpadAction scratchpads "g-dict")
+    , ("C-' k", namedScratchpadAction scratchpads "g-keep")
+    , ("C-' m", namedScratchpadAction scratchpads "g-mail")
+    , ("C-' t", namedScratchpadAction scratchpads "g-task")
     , ("C-' e", namedScratchpadAction scratchpads "emacs")
-    , ("C-' p", namedScratchpadAction scratchpads "ipython")
-    , ("C-' r", namedScratchpadAction scratchpads "pry")
-    , ("C-' s", namedScratchpadAction scratchpads "gst")
-    , ("C-' j", namedScratchpadAction scratchpads "node")
-    , ("C-' f", namedScratchpadAction scratchpads "coffee")
-    , ("C-' a", namedScratchpadAction scratchpads "alsamixer")
-    , ("C-' m", namedScratchpadAction scratchpads "ncmpcpp")
-    , ("C-' h", namedScratchpadAction scratchpads "htop")
+    , ("C-' z", namedScratchpadAction scratchpads "zsh")
+
+    , ("C-' c", namedScratchpadAction scratchpads "g-calendar")
+    , ("C-' ' g", namedScratchpadAction scratchpads "ghci")
+    , ("C-' ' l", namedScratchpadAction scratchpads "lua")
+    , ("C-' ' c", namedScratchpadAction scratchpads "scala")
+    , ("C-' ' q", namedScratchpadAction scratchpads "swipl")
+    , ("C-' ' o", namedScratchpadAction scratchpads "ocaml")
+    , ("C-' ' p", namedScratchpadAction scratchpads "ipython")
+    , ("C-' ' r", namedScratchpadAction scratchpads "pry")
+    , ("C-' ' s", namedScratchpadAction scratchpads "gst")
+    , ("C-' ' j", namedScratchpadAction scratchpads "node")
+    , ("C-' ' f", namedScratchpadAction scratchpads "coffee")
+    , ("C-' ' a", namedScratchpadAction scratchpads "alsamixer")
+    , ("C-' ' m", namedScratchpadAction scratchpads "ncmpcpp")
+    , ("C-' ' h", namedScratchpadAction scratchpads "htop")
 
     , ("C-; <Space>", sendMessage $ Toggle NBFULL)
     , ("C-; l f", sendMessage $ Toggle NBFULL)
@@ -425,8 +432,8 @@ myTopics :: [TopicItem]
 myTopics =
     [ TI "web" "" (return ())
     , TI "code" "" (urxvt "emacsclient '-nw'")
-    , TI "code2" "" (spawn "urxvt")
-    , TI "assets" "" (return ())
+    , TI "code2" "" (return ())
+    , TI "assets" "" (spawn "urxvt")
     , TI "chat" "" (return ())
     , TI "doc" "Documents/" (spawn "nemo")
     , TI "gimp" "" (return ())
@@ -508,12 +515,20 @@ scratchpads =
          , "scala"] ++
   [ NS "utop" "urxvtc -T utop -e rlwrap utop" (title =? "utop") doTopRightFloat
   , NS "task" "urxvtc -T task -e rlwrap task shell" (title =? "task") doTopRightFloat
+  , NS "stardict" "stardict" (title =? "stardict") doTopRightFloat
   , NS "emacs" "urxvtc -T emacs -e emacsclient '-nw'" (title =? "emacs") doTopRightFloat
   , NS "agenda" "org-agenda" (title =? "Agenda Frame") orgFloat
   , NS "capture" "org-capture" (title =? "Capture Frame") orgFloat
   , NS "shutdown" "urxvtc -T shutdown -e sh -c \"sudo shutdown -h 0\"" (title =? "shutdown") doTopFloat
   , NS "reboot" "urxvtc -T reboot -e sh -c \"sudo reboot\"" (title =? "reboot") doTopFloat
   , NS "getmail" "urxvtc -T getmail -e getmail -r rc0 -r rc1" (title =? "getmail") doTopRightFloat
+
+  , NS "g-dict" "google-chrome --app=http://dict.cn/" (title =? "google-dict") doTopRightFloat
+  , NS "g-calendar" "google-chrome --app=https://www.google.com/calendar/render" (title =? "google-calendar") doTopRightFloat
+  , NS "g-keep" "google-chrome --app=https://drive.google.com/keep/" (title =? "google-keep") doTopRightFloat
+  , NS "g-mail" "google-chrome --app=https://mail.google.com/" (title =? "google-mail") doTopRightFloat
+  , NS "g-task" "google-chrome --app=https://issues.schoolshape.com/projects/schoolshape/issues" (title =? "g-task") doTopRightFloat
+
   ]
   where
     urxvt prog = ("urxvtc -T "++) . ((++) . head $ words prog) . (" -e "++) . (prog++) $ ""
