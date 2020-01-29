@@ -1,0 +1,4 @@
+.stack-work/
+haskell101.cabal
+.idea/
+*.iml
