@@ -30,11 +30,10 @@ import XMonad.Layout.AutoMaster
 import XMonad.Layout.DragPane
 import XMonad.Layout.NoBorders
 import XMonad.Layout.Grid
-import XMonad.Util.Scratchpad
 import XMonad.Hooks.UrgencyHook
 import qualified XMonad.Actions.Search as S
 import qualified XMonad.Layout.PerWorkspace as PerW
-import XMonad.Prompt ( XPConfig, amberXPConfig )
+import XMonad.Prompt
 import XMonad.Prompt.Input
 import XMonad.Util.NamedScratchpad
 import XMonad.Actions.GridSelect
@@ -44,13 +43,34 @@ import XMonad.Layout.WorkspaceDir
 import XMonad.Prompt.XMonad
 import XMonad.Util.Run
 import XMonad.Hooks.FadeWindows
+import XMonad.Hooks.DynamicLog
+import XMonad.Prompt.Shell
 
 --- Refer from:
 -- https://gist.github.com/jsjolund/94f6821b248ff79586ba
 -- https://gist.github.com/yeban/311016
 -- https://github.com/simplonco/xmonad-config/blob/master/xmonad.hs
 
+-- Theme {{{
+-- Color names are easier to remember:
+colorOrange         = "#FD971F"
+colorDarkGray       = "#1B1D1E"
+colorPink           = "#F92672"
+colorGreen          = "#A6E22E"
+colorBlue           = "#66D9EF"
+colorYellow         = "#E6DB74"
+colorWhite          = "#CCCCC6"
+colorNormalBorder   = "#CCCCCp6"
+colorFocusedBorder  = "#FF0000"
+barFont  = "terminus"
+barXFont = "inconsolata:size=12"
+xftFont = "xft: inconsolata-14"
+--}}}
+
 myTerminal = "xfce4-terminal"
+--myTerminal = "urxvtc"
+
+withProxy command = "http_proxy=\"http://127.0.0.1:12333\" https_proxy=\"http://127.0.0.1:12333\" " ++ command
 
 -- Whether focus follows the mouse pointer.
 myFocusFollowsMouse :: Bool
@@ -66,23 +86,52 @@ myNormalBorderColor  = "#dddddd"
 myFocusedBorderColor = "#ff0000"
 
 myXPConfig :: XPConfig
-myXPConfig = amberXPConfig
+myXPConfig = defaultXPConfig {
+    font                  = xftFont
+    , bgColor               = colorDarkGray
+    , fgColor               = colorGreen
+    , bgHLight              = colorGreen
+    , fgHLight              = colorDarkGray
+    , promptBorderWidth     = 0
+    , height                = 22
+    , historyFilter         = deleteConsecutive
+    , promptKeymap          = emacsLikeXPKeymap
+  }
+
 
 myGSConfig = [
     "emacsclient -c"
     , "google-chrome-stable --incognito"
     , "urxvtd -q -f -o"
     , "emacs -daemon"
+    , "xrandr --output eDP1 --mode 1920x1080"
   ]
 
 myCommands :: [(String, X ())]
 myCommands = [
     ("firefox", safeSpawn "firefox" [])
-  -- , ("wallpaper", safeSpawn "change-wallpaper" [])
+  , ("cfwShell", spawn . withProxy $ myTerminal)
   ]
 
 myStartupHook = do
-    spawnOn "web" "firefox"
+--    spawnOn "web" "firefox"
+--    spawnOn "vbox" "virtualbox"
+    spawn "urxvtd -q -f -o"
+    spawn "synapse -s"
+--    spawn "udiskie --tray"
+--    spawn "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
+    spawn "fcitx"
+--    spawn "/usr/bin/nm-applet --sm-disable"
+--    spawn "xfce4-power-manager"
+--    spawn "pasystray"
+    spawn "pcmanfm -d"
+--    spawn "/usr/bin/xscreensaver -no-splash"
+--    spawn "trayer --edge top --align right --SetDockType true --SetPartialStrut false --expand true --widthtype request --transparent true --tint 0x191234 --height 19"
+--    spawn "bash /home/poe/.xmonad/wallpaper.sh"
+    spawn "emacs -daemon"
+--    spawn "electron-ssr"
+--    spawn "station"
+    spawnOn "shell" "urxvtc -e tmux new-session -A -s workspace"
 
 ------------------------------------------------------------------------
 -- Key bindings. Add, modify or remove key bindings here.
@@ -92,12 +141,17 @@ myKeys conf@XConfig {XMonad.modMask = modMask} =
     -- launch a terminal
   [ ((modMask .|. shiftMask, xK_Return), spawn $ XMonad.terminal conf)
     -- launch xfce4-launcher
-  , ((modMask, xK_p), spawn "xfrun4")
+--  , ((modMask, xK_p), spawn "synapse -s")
     -- launch gmrun
   , ((modMask .|. shiftMask, xK_p), spawn "xfce4-appfinder")
+    -- Quit xmonad
+--    , ((modMask .|. shiftMask, xK_q     ), io (exitWith ExitSuccess))
+      , ((modMask .|. shiftMask, xK_q), spawn "xfce4-session-logout")
+
     -- close focused window
   , ((modMask .|. shiftMask, xK_c), kill)
-  , ((mod1Mask, xK_F4), kill)
+  , ((mod1Mask, xK_F3), kill)
+  , ((modMask, xK_w), kill)
      -- Rotate through the available layout algorithms
   , ((modMask, xK_space), sendMessage NextLayout)
     --  Reset the layouts on the current workspace to default
@@ -137,14 +191,10 @@ myKeys conf@XConfig {XMonad.modMask = modMask} =
   , ((modMask, xK_comma), sendMessage (IncMasterN 1))
     -- Deincrement the number of windows in the master area
   , ((modMask, xK_period), sendMessage (IncMasterN (-1)))
-    -- Quit xmonad
-    --, ((modMask .|. shiftMask, xK_q     ), io (exitWith ExitSuccess))
-  , ((modMask .|. shiftMask, xK_q), spawn "xfce4-session-logout")
     -- Restart xmonad
   , ((modMask, xK_q), restart "xmonad" True)
     -- to hide/unhide the panel
   , ((modMask, xK_b), sendMessage ToggleStruts)
-  , ((modMask, xK_backslash), scratchpadSpawnActionTerminal "urxvtc -T drop_down -e tmux new-session -A -s main")
   ] ++
     --
     -- mod-[1..9], Switch to workspace N
@@ -173,6 +223,7 @@ comboKeymap = [
     , ("C-; l y", sendMessage $ Toggle REFLECTY)
     , ("C-; l m", sendMessage $ Toggle MIRROR)
     , ("C-; l b", sendMessage $ Toggle NOBORDERS)
+    , ("C-; o d", spawn "pcmanfm")
 
     --- GridSelect
     , ("C-; o o", spawnSelected def myGSConfig)
@@ -213,7 +264,7 @@ searchBindings =
   [("C-; o s " ++ name, S.promptSearch myXPConfig e) | e@(S.SearchEngine name _) <- engines, length name == 1]
   where
     promptSearch (S.SearchEngine _ site) =
-      inputPrompt myXPConfig "Search" ?+ \s -> S.search "google-chrome" site s >> viewWeb
+      inputPrompt myXPConfig "Search" ?+ \s -> S.search "firefox" site s >> viewWeb
     viewWeb = windows $ W.view "web"
     mk name site = S.intelligent $ S.searchEngine name site
     engines =
@@ -229,14 +280,20 @@ searchBindings =
       ]
 
 -------- Prompt keymap
-promptKeymap :: [(String, X ())]
-promptKeymap = [
+myPromptKeymap :: [(String, X ())]
+myPromptKeymap = [
     ("C-; p o", runOrRaisePrompt myXPConfig)
     , ("C-; p m", manPrompt myXPConfig)
     , ("C-; p d", changeDir myXPConfig)
     , ("C-; p w", xmonadPrompt myXPConfig)
-    , ("C-; p p", xmonadPromptC myCommands myXPConfig)
-  ]
+    , ("C-; p c", xmonadPromptC myCommands myXPConfig)
+    , ("C-; p p", proxyPrompt myXPConfig)
+  ] where
+    proxySpawn cmd = spawn . withProxy $ cmd
+    proxyPrompt :: XPConfig -> X ()
+    proxyPrompt c = do
+      cmds <- io getCommands
+      mkXPrompt Shell c (getShellCompl cmds $ searchPredicate c) proxySpawn
 
 -------- scratchpads
 scratchpadsKeymaps :: [(String, X ())]
@@ -246,26 +303,36 @@ scratchpadsKeymaps = [
     ("C-' e", namedScratchpadAction scratchpads "emacs"),
     ("C-' w", namedScratchpadAction scratchpads "wechat"),
     ("C-' h", namedScratchpadAction scratchpads "htop"),
-    ("C-' a", namedScratchpadAction scratchpads "alsamixer")
-  ] where
-    scratchpads =
-      map f ["ghci", "node", "alsamixer", "htop", "scala"] ++
-      [
-      NS "dict" "youdao-dict" (title =? "youdao-dict") doTopRightFloat
-      , NS "emacs" "urxvtc -T emacsnw -e emacsclient '-nw'" (title =? "emacsnw") doTopRightFloat
-      , NS "wechat" "google-chrome-stable --app=https://wx.qq.com/?lang=zh_CN" (title =? "g-wechat") doTopRightFloat
-      ]
-      where
-        urxvt prog = ("urxvtc -T "++) . ((++) . head $ words prog) . (" -e "++) . (prog++) $ ""
-        f s = NS s (urxvt s) (title =? s) doTopRightFloat
-        doSPFloat = customFloating $ W.RationalRect (1/6) (1/6) (4/6) (4/6)
-        doTopFloat = customFloating $ W.RationalRect (1/3) 0 (1/3) (1/3)
-        doTopLeftFloat = customFloating $ W.RationalRect 0 0 (1/3) (1/3)
-        doTopRightFloat = customFloating $ W.RationalRect (2/3) 0 (1/3) (1/3)
-        doBottomLeftFloat = customFloating $ W.RationalRect 0 (2/3) (1/3) (1/3)
-        doBottomRightFloat = customFloating $ W.RationalRect (2/3) (2/3) (1/3) (1/3)
-        doLeftFloat = customFloating $ W.RationalRect 0 0 (1/3) 1
-        orgFloat = customFloating $ W.RationalRect (1/2) (1/2) (1/2) (1/2)
+    ("C-' a", namedScratchpadAction scratchpads "alsamixer"),
+    ("C-' c", namedScratchpadAction scratchpads "calendar"),
+    ("C-' z", namedScratchpadAction scratchpads "zsh"),
+    ("M-\\", namedScratchpadAction scratchpads "dropdown")
+  ]
+
+scratchpads =
+  map f ["ghci", "node", "alsamixer", "htop", "scala", "zsh"] ++
+  [
+  NS "dict" "youdao-dict" (title =? "youdao-dict") doTopRightFloat
+  , NS "emacs" "urxvtc -T emacsnw -e emacsclient '-nw'" (title =? "emacsnw") doTopRightFloat
+  , NS "wechat" "surf https://wx.qq.com/?lang=zh_CN" (title =? "g-wechat") doTopRightFloat
+  , NS "calendar" (chrome "https://calendar.google.com/calendar/") (title =? "g-calendar") doSPFloat
+  , NS "dropdown" "urxvtc -T drop_down -e tmux new-session -A -s main"  (title =? "drop_down") doTopFloat
+  ]
+  where
+    urxvt prog = ("urxvtc -T "++) . ((++) . head $ words prog) . (" -e "++) . (prog++) $ ""
+    f s = NS s (urxvt s) (title =? s) doTopRightFloat
+
+    chrome url = "google-chrome-stable --app=" ++ url
+    surf url = "surf " ++ url
+
+    doSPFloat = customFloating $ W.RationalRect (1/6) (1/6) (4/6) (4/6)
+    doTopFloat = customFloating $ W.RationalRect 0 0 1 (3/4)
+    doTopLeftFloat = customFloating $ W.RationalRect 0 0 (1/3) (1/3)
+    doTopRightFloat = customFloating $ W.RationalRect (2/3) 0 (1/3) (1/3)
+    doBottomLeftFloat = customFloating $ W.RationalRect 0 (2/3) (1/3) (1/3)
+    doBottomRightFloat = customFloating $ W.RationalRect (2/3) (2/3) (1/3) (1/3)
+    doLeftFloat = customFloating $ W.RationalRect 0 0 (1/3) 1
+    orgFloat = customFloating $ W.RationalRect (1/2) (1/2) (1/2) (1/2)
 
 ---------------------------------------------------------------------
 -- Mouse bindings: default actions bound to mouse events
@@ -305,15 +372,6 @@ myLayout = PerW.onWorkspaces ["gimp"] gimpLayout $ customLayout
 
 ------------------------------------------------------------------------
 -- Window rules:
-
--- ManageHook --
-manageScratchPad :: ManageHook
-manageScratchPad = scratchpadManageHook (W.RationalRect l t w h)
-  where
-    h = 0.7
-    w = 1
-    t = 0
-    l = 1 - w
 
 pbManageHook :: ManageHook
 pbManageHook = composeAll $ concat
@@ -392,26 +450,50 @@ myManageHook = composeAll $ concat [
 --- FadeHook
 myFadeHook = composeAll [isUnfocused --> transparency 0.2, opaque]
 
+myDefaultConfig = withUrgencyHook NoUrgencyHook $ myConfig {
+     -- key bindings
+     keys               = myKeys <+> keys myConfig,
+     mouseBindings      = myMouseBindings,
+     -- simple stuff
+     terminal           = myTerminal,
+     focusFollowsMouse  = myFocusFollowsMouse,
+     clickJustFocuses   = myClickJustFocuses,
+     borderWidth        = myBorderWidth,
+     workspaces         = myWorkspaces,
+     normalBorderColor  = myNormalBorderColor,
+     focusedBorderColor = myFocusedBorderColor,
+     modMask = mod4Mask,
+
+     -- hooks, layouts
+     layoutHook = myLayout,
+     manageHook = pbManageHook <+> myManageHook <+> manageDocks <+> namedScratchpadManageHook scratchpads <+> manageHook myConfig,
+     logHook = fadeWindowsLogHook myFadeHook <+> logHook myConfig,
+     handleEventHook = fadeWindowsEventHook <+> handleEventHook myConfig,
+     startupHook = myStartupHook <+> startupHook myConfig
+   } `additionalKeysP` (comboKeymap ++ searchBindings ++ scratchpadsKeymaps ++ myPromptKeymap)
+   where
+--     myConfig = def
+     myConfig = xfceConfig
+
 main :: IO ()
 
-main = xmonad $ withUrgencyHook NoUrgencyHook $ xfceConfig {
-  -- key bindings
-  keys               = myKeys,
-  mouseBindings      = myMouseBindings,
-  -- simple stuff
-  terminal           = myTerminal,
-  focusFollowsMouse  = myFocusFollowsMouse,
-  clickJustFocuses   = myClickJustFocuses,
-  borderWidth        = myBorderWidth,
-  workspaces         = myWorkspaces,
-  normalBorderColor  = myNormalBorderColor,
-  focusedBorderColor = myFocusedBorderColor,
-  modMask = mod4Mask,
+--main = xmonad =<< statusBar cmd myXmobarPP toggleStrutsKey myDefaultConfig
+main = xmonad myDefaultConfig
+  where
+    cmd = "xmobar ~/.xmonad/xmobar.hs -x0"
+    toggleStrutsKey :: XConfig t -> (KeyMask, KeySym)
+    toggleStrutsKey XConfig {modMask = modm} = (modm, xK_b)
+    myXmobarPP =
+      def
+        { ppCurrent = xmobarColor "#429942" "" . wrap "[" "]"
+        , ppVisible = xmobarColor "#429942" ""
+        , ppHidden = xmobarColor "#C98F0A" ""
+        , ppHiddenNoWindows = const ""
+        , ppUrgent = xmobarColor "#FFFFAF" "" . wrap "" ""
+        , ppLayout = xmobarColor "#C9A34E" "" . shorten 10
+        , ppTitle = xmobarColor "#C9A34E" "" . shorten 32
+        , ppSep = xmobarColor "#429942" "" " | "
+      -- , ppOrder  = \(ws:l:t:exs) -> []++exs
+        , ppSort = fmap (namedScratchpadFilterOutWorkspace .) (ppSort byorgeyPP)
+        }
 
-  -- hooks, layouts
-  layoutHook = myLayout,
-  manageHook = pbManageHook <+> myManageHook <+> manageDocks <+> manageScratchPad <+> manageHook xfceConfig,
-  logHook = fadeWindowsLogHook myFadeHook <+> logHook xfceConfig,
-  handleEventHook = fadeWindowsEventHook <+> handleEventHook xfceConfig,
-  startupHook = myStartupHook <+> startupHook xfceConfig
-} `additionalKeysP` (comboKeymap ++ searchBindings ++ scratchpadsKeymaps ++ promptKeymap)
