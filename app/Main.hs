@@ -63,9 +63,7 @@ colorYellow         = "#E6DB74"
 colorWhite          = "#CCCCC6"
 colorNormalBorder   = "#CCCCCp6"
 colorFocusedBorder  = "#FF0000"
-barFont  = "terminus"
-barXFont = "inconsolata:size=12"
-xftFont = "xft: inconsolata-14"
+xftFont = "xft:monofur:size=14"
 --}}}
 
 --myTerminal = "xfce4-terminal"
@@ -99,7 +97,12 @@ myXPConfig = defaultXPConfig {
     , promptKeymap          = emacsLikeXPKeymap
   }
 
-myGSConfig = [
+myGSConfig :: HasColorizer a => GSConfig a
+myGSConfig = def {
+  gs_font = "xft:WenQuanYi Micro Hei Mono Light:size=9"
+}
+myGSCmd :: [String]
+myGSCmd = [
     "emacsclient -c"
     , "google-chrome-stable --incognito"
     , "urxvtd -q -f -o"
@@ -109,16 +112,16 @@ myGSConfig = [
 
 myCommands :: [(String, X ())]
 myCommands = [
-  ("cfw_terminal", spawn . withProxy $ myTerminal)
-  , ("tw_mail", spawn . chrome $ "https://mail.google.com/mail/u/1/#inbox")
-  , ("tw_calendar", spawn . chrome $ "https://calendar.google.com/calendar/b/1/r")
-  , ("my_mail", spawn . chrome $ "https://mail.google.com/mail/u/0/#inbox")
+  ("mail_tw", spawn . chrome $ "https://mail.google.com/mail/u/1/#inbox")
+  , ("calendar_tw", spawn . chrome $ "https://calendar.google.com/calendar/b/1/r")
+  , ("mail_self", spawn . chrome $ "https://mail.google.com/mail/u/0/#inbox")
   , ("trello", spawn . chrome $ "https://trello.com/b/5k7cKgLN/works")
   , ("notion", spawn . chrome $ "https://www.notion.so/zhpooer/e0414f48794f4709b8ef86a21c9437a8?v=d087bd7e392a4cc48b85f3c5d8696400")
   , ("todoist", spawn . chrome $ "https://todoist.com/app#project%2F377591330")
   , ("jira", spawn . chrome $ "https://reagroup.atlassian.net/secure/RapidBoard.jspa?rapidView=745")
   , ("slack", spawn . chrome $ "https://app.slack.com/client/T027TU47K/GQHU1Q8QZ")
-  , ("rea_outlook", spawn . chrome $ "https://outlook.office.com/calendar/view/week")
+  , ("outlook_rea", spawn . chrome $ "https://outlook.office.com/calendar/view/week")
+  , ("terminal_cfw", spawn . withProxy $ myTerminal)
   ] where
      chrome url = "google-chrome-stable --app=" ++ url
 
@@ -136,12 +139,17 @@ myStartupHook = do
     spawn "pcmanfm -d"
     spawn "/usr/bin/xscreensaver -no-splash"
     spawn "trayer --edge top --align right --SetDockType true --SetPartialStrut false --expand true --widthtype request --transparent true --tint 0x191234 --height 19"
-    spawn "bash /home/poe/.xmonad/wallpaper.sh"
+    spawn "sleep 1; bash /home/poe/.xmonad/wallpaper.sh"
     spawn "electron-ssr"
     spawn "synapse -s"
-    spawnOn "info" "station"
-    spawnOn "mail" "mailspring"
-    spawnOn "shell" "sleep 1 && urxvtc -e tmux new-session -A -s workspace -T urxvt_shell"
+    spawn "sleep 0.5; xrandr --output eDP1 --mode 1920x1080"
+    spawn $ chromeApp "https://app.slack.com/client/T027TU47K/GQHU1Q8QZ"
+    spawn $ chromeApp "https://calendar.google.com/calendar/b/1/r"
+    spawn $ chromeApp "https://mail.google.com/mail/u/1/#inbox"
+    spawn "mailspring"
+    spawnOn "shell" "sleep 2 && urxvtc -T urxvt_shell -e tmux new-session -A -s workspace"
+  where
+      chromeApp url = "sleep 2; google-chrome-stable --app=" ++ url
 
 ------------------------------------------------------------------------
 -- Key bindings. Add, modify or remove key bindings here.
@@ -236,8 +244,8 @@ comboKeymap = [
     , ("C-; o d", spawn "pcmanfm")
 
     --- GridSelect
-    , ("C-; o o", spawnSelected def myGSConfig)
-    , ("C-; o p", goToSelected def)
+    , ("C-; o o", spawnSelected myGSConfig myGSCmd)
+    , ("C-; o p", goToSelected myGSConfig)
     , ("C-; o k", kill)
     , ("C-; o l", spawn "xscreensaver-command -lock")
 
@@ -317,7 +325,7 @@ scratchpadsKeymaps = [
     ("C-' a", namedScratchpadAction scratchpads "alsamixer"),
     ("C-' c", namedScratchpadAction scratchpads "calendar"),
     ("C-' z", namedScratchpadAction scratchpads "zsh"),
-    ("M-\\", namedScratchpadAction scratchpads "dropdown")
+    ("M-\\", namedScratchpadAction scratchpads "fly_terminal")
   ]
 
 scratchpads =
@@ -327,7 +335,7 @@ scratchpads =
   , NS "emacs" "urxvtc -T emacsnw -e emacsclient '-nw'" (title =? "emacsnw") doTopRightFloat
   , NS "wechat" "surf https://wx.qq.com/?lang=zh_CN" (title =? "g-wechat") doTopRightFloat
   , NS "calendar" (chrome "https://calendar.google.com/calendar/") (title =? "g-calendar") doSPFloat
-  , NS "dropdown" "urxvtc -T drop_down -e tmux new-session -A -s main"  (title =? "drop_down") doTopFloat
+  , NS "fly_terminal" "urxvtc -T fly_terminal-e tmux new-session -A -s main"  (title =? "fly_terminal") doTopFloat
   ]
   where
     urxvt prog = ("urxvtc -T "++) . ((++) . head $ words prog) . (" -e "++) . (prog++) $ ""
@@ -400,8 +408,8 @@ pbManageHook = composeAll $ concat
 
 myManageHook = composeAll $ concat [
     [matchAny v --> doIgnore | v <- myIgnores]
-    , [matchAny v --> doCenterFloat | v <- myCenterFloats]
     , [matchAny v --> doSink | v <- ["gimp"]]
+    , [matchAny v --> doShiftAndGo w | (w, v) <- myDoShiftAndGo]
     , [matchAny v --> doShift "web" | v <- myWeb]
     , [matchAny v --> doShift "editor" | v <- myEditor]
     , [matchAny v --> doShift "info" | v <- myInfo]
@@ -416,7 +424,15 @@ myManageHook = composeAll $ concat [
     , [ appName =? "sun-awt-X11-XWindowPeer" <&&> className =? "jetbrains-idea" --> doIgnore ]
     , [ (className ~=? "jetbrains-") <&&> (title ~=? "Changes in") -->  unfloat ]
     , [ (className ~=? "jetbrains-") <&&> (title ~=? "Paths Affected in") --> unfloat ]
+    , [matchAny v --> doCenterFloat | v <- myCenterFloats]
   ] where
+    myDoShiftAndGo = [
+        ("info", "app.slack.com"),
+        ("info", "calendar.google.com"),
+        ("info", "reagroup.atlassian.net"),
+        ("info", "outlook.office.com"),
+        ("mail", "mail.google.com")
+      ]
     myCenterFloats = ["Sysinfo", "XMessage", "Smplayer"
                       ,"MPlayer", "nemo", "youdao-dict"
                       , "Toplevel", "Pcmanfm", "goldendict"
@@ -439,13 +455,15 @@ myManageHook = composeAll $ concat [
     myIDE = ["eclipse", "Eclipse", "jetbrains-idea-ce",
              "jetbrains-idea", "Aptana Studio 3"]
     myGimp = ["Gimp", "GIMP Image Editor"]
-    myMail = ["mailspring"]
+    myMail = ["Mailspring"]
     myMedia = ["Rhythmbox","Spotify","Boxee","Trine"]
     myVBox = ["Oracle VM VirtualBox Manager", "VirtualBox", "VirtualBox Manager"]
     myShell = ["urxvt_shell"]
 
     (~=?) :: Eq a => Query [a] -> [a] -> Query Bool
     q ~=? x = fmap (isPrefixOf x) q
+
+    doShiftAndGo = doF . liftM2 (.) W.greedyView W.shift
 
     -- Hook used to push floating windows back into the layout
     -- This is used for gimp windows to force them into a layout.
@@ -454,7 +472,7 @@ myManageHook = composeAll $ concat [
     -- Match a string against any one of a window's class, title, name or
     -- role.
     matchAny :: String -> Query Bool
-    matchAny x = foldr ((<||>) . (=? x)) (return False) [className, title, name, role]
+    matchAny x = foldr ((<||>) . (~=? x)) (return False) [className, title, name, role]
     -- Match against @WM_NAME@.
     name :: Query String
     name = stringProperty "WM_CLASS"
