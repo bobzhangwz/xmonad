@@ -1,5 +1,6 @@
 module Main where
 
+import Control.Monad
 import XMonad
 import XMonad.Config.Xfce
 import XMonad.Hooks.ManageDocks
@@ -67,8 +68,8 @@ barXFont = "inconsolata:size=12"
 xftFont = "xft: inconsolata-14"
 --}}}
 
-myTerminal = "xfce4-terminal"
---myTerminal = "urxvtc"
+--myTerminal = "xfce4-terminal"
+myTerminal = "urxvtc"
 
 withProxy command = "http_proxy=\"http://127.0.0.1:12333\" https_proxy=\"http://127.0.0.1:12333\" " ++ command
 
@@ -98,7 +99,6 @@ myXPConfig = defaultXPConfig {
     , promptKeymap          = emacsLikeXPKeymap
   }
 
-
 myGSConfig = [
     "emacsclient -c"
     , "google-chrome-stable --incognito"
@@ -109,29 +109,39 @@ myGSConfig = [
 
 myCommands :: [(String, X ())]
 myCommands = [
-    ("firefox", safeSpawn "firefox" [])
-  , ("cfwShell", spawn . withProxy $ myTerminal)
-  ]
+  ("cfw_terminal", spawn . withProxy $ myTerminal)
+  , ("tw_mail", spawn . chrome $ "https://mail.google.com/mail/u/1/#inbox")
+  , ("tw_calendar", spawn . chrome $ "https://calendar.google.com/calendar/b/1/r")
+  , ("my_mail", spawn . chrome $ "https://mail.google.com/mail/u/0/#inbox")
+  , ("trello", spawn . chrome $ "https://trello.com/b/5k7cKgLN/works")
+  , ("notion", spawn . chrome $ "https://www.notion.so/zhpooer/e0414f48794f4709b8ef86a21c9437a8?v=d087bd7e392a4cc48b85f3c5d8696400")
+  , ("todoist", spawn . chrome $ "https://todoist.com/app#project%2F377591330")
+  , ("jira", spawn . chrome $ "https://reagroup.atlassian.net/secure/RapidBoard.jspa?rapidView=745")
+  , ("slack", spawn . chrome $ "https://app.slack.com/client/T027TU47K/GQHU1Q8QZ")
+  , ("rea_outlook", spawn . chrome $ "https://outlook.office.com/calendar/view/week")
+  ] where
+     chrome url = "google-chrome-stable --app=" ++ url
 
 myStartupHook = do
---    spawnOn "web" "firefox"
---    spawnOn "vbox" "virtualbox"
+    spawnOn "web" "firefox"
+    spawnOn "vbox" "virtualbox"
     spawn "urxvtd -q -f -o"
-    spawn "synapse -s"
---    spawn "udiskie --tray"
---    spawn "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
-    spawn "fcitx"
---    spawn "/usr/bin/nm-applet --sm-disable"
---    spawn "xfce4-power-manager"
---    spawn "pasystray"
-    spawn "pcmanfm -d"
---    spawn "/usr/bin/xscreensaver -no-splash"
---    spawn "trayer --edge top --align right --SetDockType true --SetPartialStrut false --expand true --widthtype request --transparent true --tint 0x191234 --height 19"
---    spawn "bash /home/poe/.xmonad/wallpaper.sh"
     spawn "emacs -daemon"
---    spawn "electron-ssr"
---    spawn "station"
-    spawnOn "shell" "urxvtc -e tmux new-session -A -s workspace"
+    spawn "udiskie --tray"
+    spawn "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
+    spawn "fcitx"
+    spawn "/usr/bin/nm-applet --sm-disable"
+    spawn "xfce4-power-manager"
+    spawn "pasystray"
+    spawn "pcmanfm -d"
+    spawn "/usr/bin/xscreensaver -no-splash"
+    spawn "trayer --edge top --align right --SetDockType true --SetPartialStrut false --expand true --widthtype request --transparent true --tint 0x191234 --height 19"
+    spawn "bash /home/poe/.xmonad/wallpaper.sh"
+    spawn "electron-ssr"
+    spawn "synapse -s"
+    spawnOn "info" "station"
+    spawnOn "mail" "mailspring"
+    spawnOn "shell" "sleep 1 && urxvtc -e tmux new-session -A -s workspace -T urxvt_shell"
 
 ------------------------------------------------------------------------
 -- Key bindings. Add, modify or remove key bindings here.
@@ -141,12 +151,12 @@ myKeys conf@XConfig {XMonad.modMask = modMask} =
     -- launch a terminal
   [ ((modMask .|. shiftMask, xK_Return), spawn $ XMonad.terminal conf)
     -- launch xfce4-launcher
---  , ((modMask, xK_p), spawn "synapse -s")
+  , ((modMask, xK_p), spawn "synapse -s")
     -- launch gmrun
-  , ((modMask .|. shiftMask, xK_p), spawn "xfce4-appfinder")
+--  , ((modMask .|. shiftMask, xK_p), spawn "xfce4-appfinder")
     -- Quit xmonad
---    , ((modMask .|. shiftMask, xK_q     ), io (exitWith ExitSuccess))
-      , ((modMask .|. shiftMask, xK_q), spawn "xfce4-session-logout")
+    , ((modMask .|. shiftMask, xK_q     ), io (exitWith ExitSuccess))
+--      , ((modMask .|. shiftMask, xK_q), spawn "xfce4-session-logout")
 
     -- close focused window
   , ((modMask .|. shiftMask, xK_c), kill)
@@ -202,7 +212,7 @@ myKeys conf@XConfig {XMonad.modMask = modMask} =
     --
   [ ((m .|. modMask, k), windows $ f i)
   | (i, k) <- zip (XMonad.workspaces conf) $ [xK_1 .. xK_9] ++ [xK_0]
-  , (f, m) <- [(W.greedyView, 0), (W.shift, shiftMask)]
+  , (f, m) <- [(W.greedyView, 0), (liftM2 (.) W.view W.shift, shiftMask)]
   ] ++
     --
     -- mod-{w,e,r}, Switch to physical/Xinerama screens 1, 2, or 3
@@ -210,7 +220,7 @@ myKeys conf@XConfig {XMonad.modMask = modMask} =
     --
   [ ((m .|. modMask, key), screenWorkspace sc >>= flip whenJust (windows . f))
   | (key, sc) <- zip [xK_w, xK_e, xK_r] [0 ..]
-  , (f, m) <- [(W.view, 0), (W.shift, shiftMask)]
+  , (f, m) <- [(W.view, 0), (liftM2 (.) W.view W.shift, shiftMask)]
   ]
 
 -- refer https://hackage.haskell.org/package/xmonad-contrib-0.16/docs/XMonad-Util-EZConfig.html
@@ -227,7 +237,7 @@ comboKeymap = [
 
     --- GridSelect
     , ("C-; o o", spawnSelected def myGSConfig)
-    , ("C-; o w", goToSelected def)
+    , ("C-; o p", goToSelected def)
     , ("C-; o k", kill)
     , ("C-; o l", spawn "xscreensaver-command -lock")
 
@@ -287,6 +297,7 @@ myPromptKeymap = [
     , ("C-; p d", changeDir myXPConfig)
     , ("C-; p w", xmonadPrompt myXPConfig)
     , ("C-; p c", xmonadPromptC myCommands myXPConfig)
+    , ("M-S-p", xmonadPromptC myCommands myXPConfig)
     , ("C-; p p", proxyPrompt myXPConfig)
   ] where
     proxySpawn cmd = spawn . withProxy $ cmd
@@ -394,10 +405,12 @@ myManageHook = composeAll $ concat [
     , [matchAny v --> doShift "web" | v <- myWeb]
     , [matchAny v --> doShift "editor" | v <- myEditor]
     , [matchAny v --> doShift "info" | v <- myInfo]
+    , [matchAny v --> doShift "mail" | v <- myMail]
     , [matchAny v --> doShift "ide" | v <- myIDE]
     , [matchAny v --> doShift "media" | v <- myMedia]
     , [matchAny v --> doShift "gimp" | v <- myGimp]
     , [matchAny v --> doShift "vbox" | v <- myVBox]
+    , [matchAny v --> doShift "shell" | v <- myShell]
     -- IntelliJ idea Tweaks
     -- Manage idea completion window
     , [ appName =? "sun-awt-X11-XWindowPeer" <&&> className =? "jetbrains-idea" --> doIgnore ]
@@ -426,8 +439,10 @@ myManageHook = composeAll $ concat [
     myIDE = ["eclipse", "Eclipse", "jetbrains-idea-ce",
              "jetbrains-idea", "Aptana Studio 3"]
     myGimp = ["Gimp", "GIMP Image Editor"]
-    myMedia = ["Rhythmbox","Spotify","Boxee","Trine","VirtualBox Manager"]
-    myVBox = ["Oracle VM VirtualBox Manager", "VirtualBox"]
+    myMail = ["mailspring"]
+    myMedia = ["Rhythmbox","Spotify","Boxee","Trine"]
+    myVBox = ["Oracle VM VirtualBox Manager", "VirtualBox", "VirtualBox Manager"]
+    myShell = ["urxvt_shell"]
 
     (~=?) :: Eq a => Query [a] -> [a] -> Query Bool
     q ~=? x = fmap (isPrefixOf x) q
@@ -472,13 +487,13 @@ myDefaultConfig = withUrgencyHook NoUrgencyHook $ myConfig {
      startupHook = myStartupHook <+> startupHook myConfig
    } `additionalKeysP` (comboKeymap ++ searchBindings ++ scratchpadsKeymaps ++ myPromptKeymap)
    where
---     myConfig = def
-     myConfig = xfceConfig
+     myConfig = def
+--     myConfig = xfceConfig
 
 main :: IO ()
 
---main = xmonad =<< statusBar cmd myXmobarPP toggleStrutsKey myDefaultConfig
-main = xmonad myDefaultConfig
+main = xmonad =<< statusBar cmd myXmobarPP toggleStrutsKey myDefaultConfig
+--main = xmonad myDefaultConfig
   where
     cmd = "xmobar ~/.xmonad/xmobar.hs -x0"
     toggleStrutsKey :: XConfig t -> (KeyMask, KeySym)
