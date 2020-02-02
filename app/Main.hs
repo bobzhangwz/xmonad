@@ -80,7 +80,7 @@ myClickJustFocuses :: Bool
 myClickJustFocuses = False
 
 myBorderWidth = 3
-myWorkspaces = ["web", "editor", "ide", "info", "mail", "vbox", "media", "gimp", "swap", "shell"]
+myWorkspaces = ["web", "editor", "info", "chat", "mail", "vbox", "media", "gimp", "swap", "shell"]
 myNormalBorderColor  = "#dddddd"
 myFocusedBorderColor = "#ff0000"
 
@@ -146,7 +146,7 @@ myStartupHook = do
     spawn $ chromeApp "https://app.slack.com/client/T027TU47K/GQHU1Q8QZ"
     spawn $ chromeApp "https://calendar.google.com/calendar/b/1/r"
     spawn $ chromeApp "https://mail.google.com/mail/u/1/#inbox"
-    spawn "mailspring"
+    spawn "sleep 3; mailspring"
     spawnOn "shell" "sleep 2 && urxvtc -T urxvt_shell -e tmux new-session -A -s workspace"
   where
       chromeApp url = "sleep 2; google-chrome-stable --app=" ++ url
@@ -244,7 +244,7 @@ comboKeymap = [
     , ("C-; o d", spawn "pcmanfm")
 
     --- GridSelect
-    , ("C-; o o", spawnSelected myGSConfig myGSCmd)
+    , ("C-; o o", spawnSelected def{gs_font = "xft:monofur:size=14"} myGSCmd)
     , ("C-; o p", goToSelected myGSConfig)
     , ("C-; o k", kill)
     , ("C-; o l", spawn "xscreensaver-command -lock")
@@ -325,24 +325,24 @@ scratchpadsKeymaps = [
     ("C-' a", namedScratchpadAction scratchpads "alsamixer"),
     ("C-' c", namedScratchpadAction scratchpads "calendar"),
     ("C-' z", namedScratchpadAction scratchpads "zsh"),
+    ("C-' r", namedScratchpadAction scratchpads "ranger"),
     ("M-\\", namedScratchpadAction scratchpads "fly_terminal")
   ]
 
 scratchpads =
-  map f ["ghci", "node", "alsamixer", "htop", "scala", "zsh"] ++
+  map f ["ghci", "node", "alsamixer", "htop", "scala", "zsh", "ranger"] ++
   [
-  NS "dict" "youdao-dict" (title =? "youdao-dict") doTopRightFloat
+  NS "dict" (chrome "http://dict.youdao.com/") (title =? "dict") doTopRightFloat
   , NS "emacs" "urxvtc -T emacsnw -e emacsclient '-nw'" (title =? "emacsnw") doTopRightFloat
   , NS "wechat" "surf https://wx.qq.com/?lang=zh_CN" (title =? "g-wechat") doTopRightFloat
   , NS "calendar" (chrome "https://calendar.google.com/calendar/") (title =? "g-calendar") doSPFloat
-  , NS "fly_terminal" "urxvtc -T fly_terminal-e tmux new-session -A -s main"  (title =? "fly_terminal") doTopFloat
+  , NS "fly_terminal" "urxvtc -T fly_terminal -e tmux new-session -A -s main"  (title =? "fly_terminal") doTopFloat
   ]
   where
     urxvt prog = ("urxvtc -T "++) . ((++) . head $ words prog) . (" -e "++) . (prog++) $ ""
     f s = NS s (urxvt s) (title =? s) doTopRightFloat
 
     chrome url = "google-chrome-stable --app=" ++ url
-    surf url = "surf " ++ url
 
     doSPFloat = customFloating $ W.RationalRect (1/6) (1/6) (4/6) (4/6)
     doTopFloat = customFloating $ W.RationalRect 0 0 1 (3/4)
@@ -414,7 +414,7 @@ myManageHook = composeAll $ concat [
     , [matchAny v --> doShift "editor" | v <- myEditor]
     , [matchAny v --> doShift "info" | v <- myInfo]
     , [matchAny v --> doShift "mail" | v <- myMail]
-    , [matchAny v --> doShift "ide" | v <- myIDE]
+    , [matchAny v --> doShift "chat" | v <- myChat]
     , [matchAny v --> doShift "media" | v <- myMedia]
     , [matchAny v --> doShift "gimp" | v <- myGimp]
     , [matchAny v --> doShift "vbox" | v <- myVBox]
@@ -434,7 +434,7 @@ myManageHook = composeAll $ concat [
         ("mail", "mail.google.com")
       ]
     myCenterFloats = ["Sysinfo", "XMessage", "Smplayer"
-                      ,"MPlayer", "nemo", "youdao-dict"
+                      ,"MPlayer", "nemo"
                       , "Toplevel", "Pcmanfm", "goldendict"
                       , "Xmessage","XFontSel","Downloads"
                       ,"Nm-connection-editor", "Pidgin"
@@ -450,10 +450,11 @@ myManageHook = composeAll $ concat [
               , "opera", "Opera", "Chromium"]
     myInfo = ["Pidgin Internet Messenger", "Buddy List"
                , "skype", "skype-wrapper", "Skype",
-               "Conky", "electronic-wechat", "Zoom", "franz", "Station"]
-    myEditor = ["geany", "Gvim", "emacs"]
-    myIDE = ["eclipse", "Eclipse", "jetbrains-idea-ce",
+               "Conky", "Station"]
+    myEditor = ["geany", "Gvim", "emacs",
+              "eclipse", "Eclipse", "jetbrains-idea-ce",
              "jetbrains-idea", "Aptana Studio 3"]
+    myChat = ["zoom"]
     myGimp = ["Gimp", "GIMP Image Editor"]
     myMail = ["Mailspring"]
     myMedia = ["Rhythmbox","Spotify","Boxee","Trine"]
@@ -529,4 +530,3 @@ main = xmonad =<< statusBar cmd myXmobarPP toggleStrutsKey myDefaultConfig
       -- , ppOrder  = \(ws:l:t:exs) -> []++exs
         , ppSort = fmap (namedScratchpadFilterOutWorkspace .) (ppSort byorgeyPP)
         }
-
